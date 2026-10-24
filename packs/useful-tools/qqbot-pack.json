@@ -3,5 +3,6 @@
   "author": "做早饭",
   "version": "1.0.0",
   "description": "几个日常会用到的扩展：今天日期、掷骰子、随机抽签。",
-  "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins/tree/main/packs/useful-tools"
+  "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins/tree/main/packs/useful-tools",
+  "tags": ["工具", "日常"]
 }

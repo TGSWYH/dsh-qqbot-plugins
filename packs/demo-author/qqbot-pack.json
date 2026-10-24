@@ -3,5 +3,6 @@
   "author": "做早饭",
   "version": "1.0.0",
   "description": "演示：扩展放在独立目录里，按 tools/commands/… 结构摆放，面板会按包分组显示",
-  "homepage": "https://github.com/zaofan-make/dsh-qqbot"
+  "homepage": "https://github.com/zaofan-make/dsh-qqbot",
+  "tags": ["示例", "入门"]
 }
