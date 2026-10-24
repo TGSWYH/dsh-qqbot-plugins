@@ -2,9 +2,12 @@ name: check-pack
 
 # PR 检查：把明显有问题的扩展包挡在合并之前。
 #
-# 逻辑全在 scripts/check-packs.mjs 里（node），不写 shell 逻辑 ——
-# Actions 的 run 默认是 `bash -e`，`[ -z "$x" ] && continue` 这类写法
-# 在条件为假时返回 1，会把整个 step 直接判失败（2026-10-24 踩过这个坑）。
+# 两个教训（2026-10-24 都踩了）：
+#   ① 不要用 shell 逻辑做校验。Actions 的 run 默认 `bash -e`，
+#      `[ -z "$x" ] && continue` 条件为假时返回 1，会直接把 step 判失败。
+#   ② 不要把 step 输出拼进命令参数。值里带空格/换行时，GitHub 表达式
+#      展开后引号可能不配对，bash 直接 `unexpected EOF`（exit 2），
+#      校验脚本根本没跑。所以这里不传参数，脚本自己全量扫 packs/。
 on:
   pull_request:
     paths:
@@ -17,24 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: 找出本次改动的插件目录
-        id: packs
-        run: |
-          base="${{ github.event.pull_request.base.sha }}"
-          head="${{ github.event.pull_request.head.sha }}"
-          dirs=$(git diff --name-only "$base" "$head" -- 'packs/' | cut -d/ -f1-2 | sort -u | tr '\n' ' ')
-          echo "改动目录: ${dirs:-（无）}"
-          echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
-
       - name: 校验扩展包
-        run: node scripts/check-packs.mjs ${{ steps.packs.outputs.dirs }}
+        run: node scripts/check-packs.mjs
 
       - name: 预演生成索引（不提交）
         env:
