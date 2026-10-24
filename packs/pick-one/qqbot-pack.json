@@ -1,8 +1,12 @@
 {
   "name": "帮我选",
-  "author": "鲸鱼娘",
+  "author": "zaofan-make",
   "version": "1.0.0",
   "description": "纠结的时候让它替你在几个选项里挑一个：群里抽签、决定吃啥、选方案都能用。",
   "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins/tree/main/packs/pick-one",
-  "tags": ["工具", "决定", "抽签"]
+  "tags": [
+    "工具",
+    "决定",
+    "抽签"
+  ]
 }
