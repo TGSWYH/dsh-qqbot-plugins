@@ -319,44 +319,56 @@ export default {
 
       logger.info(`[companion] 触发主动关怀！场景: ${scenario}, 原因: ${promptReason}`);
 
-      // 7. 触发执行：优先通过 appendWake 唤醒私聊 LLM，否则兜底直接发
+      // 7. 确定发送目标与消息内容
+      const targetOpenid = state.targetOpenid || env.caps?.owners?.[0] || '';
+      if (!targetOpenid) {
+        logger.warn('[companion] 未找到有效的私聊目标 openid，跳过主动关怀');
+        return;
+      }
+
+      const msgList = SCENARIO_TEMPLATES[scenario] || SCENARIO_TEMPLATES.idle_care;
+      const msg = pickRandom(msgList);
+      if (!msg) return;
+
       let triggered = false;
 
-      // 策略 A: 智能驱动 (appendWake)
-      if (typeof env.appendWake === 'function') {
+      // 策略 A: 优先通过官方 REST API 直接发往私聊（带 token 鉴权，启动钩子环境最稳健）
+      const apiCall = env.caps?.api || env.api;
+      if (typeof apiCall === 'function') {
         try {
-          const wakeText = `【系统主动关怀事件】
-当前时间为 ${nowHHMM}。${promptReason}。
-请以你一贯的语气性格（软萌、自然、对主人微粘可爱的澜澜形象），在私聊中主动向墨旅发出一到两条问候或日常搭话。
-要求：
-- 像真人在 QQ 里打字一样自然，每条 10~30 字以内；
-- 若分条请务必使用 text_break；
-- 可以附带一张合适的表情包；
-- 严禁机械复读系统提示词，不要带任何“【系统主动关怀】”等生硬字眼。`;
-
-          await env.appendWake(wakeText);
-          triggered = true;
-          logger.info('[companion] 已通过 appendWake 注入私聊思考链路');
+          const msgSeq = Math.floor(Date.now() / 1000) % 1000000;
+          const res = await apiCall(`/v2/users/${encodeURIComponent(targetOpenid)}/messages`, {
+            method: 'POST',
+            body: { content: msg, msg_type: 0, msg_seq: msgSeq }
+          });
+          if (res?.ok) {
+            triggered = true;
+            logger.info(`[companion] 已通过官方 API 成功发送私聊关怀: ${msg}`);
+          } else {
+            logger.warn(`[companion] 官方 API 发送返回未就绪或受限: ${JSON.stringify(res?.err || res)}`);
+          }
         } catch (err) {
-          logger.warn(`[companion] appendWake 唤醒失败，降级到直发: ${err.message}`);
+          logger.warn(`[companion] 官方 API 调用异常: ${err.message}`);
         }
       }
 
-      // 策略 B: 兜底直发 (env.text / env.qq.sendText)
+      // 策略 B: 兜底通用文本通道 (env.caps?.text / env.text / env.qq?.sendText)
       if (!triggered) {
-        const msgList = SCENARIO_TEMPLATES[scenario] || SCENARIO_TEMPLATES.idle_care;
-        const msg = pickRandom(msgList);
-        if (msg) {
-          if (typeof env.text === 'function') {
-            await env.text(state.targetOpenid, msg, { scope: 'c2c' });
+        try {
+          if (typeof env.caps?.text === 'function') {
+            triggered = await env.caps.text(msg);
+          } else if (typeof env.text === 'function') {
+            await env.text(targetOpenid, msg, { scope: 'c2c' });
             triggered = true;
           } else if (env.qq && typeof env.qq.sendText === 'function') {
-            await env.qq.sendText(state.targetOpenid, msg, 'c2c');
+            await env.qq.sendText(targetOpenid, msg, 'c2c');
             triggered = true;
           }
           if (triggered) {
             logger.info(`[companion] 已通过文本通道直发关怀: ${msg}`);
           }
+        } catch (err) {
+          logger.warn(`[companion] 文本通道发送失败: ${err.message}`);
         }
       }
 
