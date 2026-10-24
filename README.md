@@ -93,3 +93,33 @@ export const qqbotSettingsPage = {
 ## 许可
 
 各插件版权归各自作者，本仓库仅作索引与分发。
+
+## 怎么提交自己的插件
+
+**只加目录，不要改 `index.json`**（它由 Action 自动生成）：
+
+```
+packs/你的插件id/          ← id 只能用字母数字-_
+  qqbot-pack.json          ← 元信息（必填）
+  cover.png                ← 可选，卡片封面（自动探测）
+  tools/xxx.mjs            ← 可选，给 AI 调用的工具
+  commands/yyy.mjs         ← 可选，/命令
+```
+
+`qqbot-pack.json` 长这样：
+
+```json
+{
+  "name": "我的插件",
+  "author": "你的名字",
+  "version": "1.0.0",
+  "description": "一句话说明",
+  "homepage": "https://github.com/你/你的仓库",
+  "tags": ["工具"],
+}
+
+```
+
+提 PR 后会自动跑检查（manifest 字段、`node --check`、禁二进制、`inputSchema` 格式）；
+合并到 main 后 Action 自动重建 `index.json` —— **不需要你自己维护文件清单**。
+两个人同时提 PR 也不会冲突，因为各自只加自己的目录。
