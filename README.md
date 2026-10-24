@@ -28,9 +28,13 @@ packs/<id>/
   "repo": "zaofan-make/dsh-qqbot-plugins",
   "path": "packs/your-pack",
   "tags": ["工具", "示例"],
-  "kinds": ["tools", "commands"]
+  "kinds": ["tools", "commands"],
+  "cover": "https://raw.githubusercontent.com/zaofan-make/dsh-qqbot-plugins/main/packs/your-pack/cover.png"
+
 }
 ```
+
+`cover` 可选，指向仓库里的图片（png/jpg/webp），面板会把它当卡片封面。
 
 ## 工具怎么写
 
