@@ -3,17 +3,17 @@
  *
  * 核心机制（双驱动并行）：
  * 1. 路线一【作息时段关怀（Window Greeting）】：
- *    - 早安问候 (默认 08:30 ~ 09:30)
- *    - 午后提神 (默认 14:00 ~ 14:30)
- *    - 傍晚提醒 (默认 18:30 ~ 19:30)
- *    - 晚安陪伴 (默认 22:30 ~ 23:30)
+ *    - 早安问候 (默认开启，08:30 ~ 09:30)
+ *    - 午后提神 (默认关闭，14:00 ~ 14:30，可按需在设置中开启)
+ *    - 傍晚提醒 (默认关闭，18:30 ~ 19:30，可按需在设置中开启)
+ *    - 晚安陪伴 (默认开启，22:30 ~ 23:30)
  *    - 各窗口支持在设置面板独立开启/关闭、时段自定义；每个窗口当天最多触发 1 次。
  * 2. 路线二【空闲超时冒泡（Idle Poke）】：
  *    - 距离上次私聊对话超过设定阈值（默认 3 小时）且当前处于活跃时段时，主动戳一下主人。
  *    - 支持在设置面板独立开启/关闭、修改超时小时数。
  * 3. 频控与多层防打扰机制：
  *    - 夜间免打扰（DND）：默认 23:30 ~ 08:30 绝对静默；
- *    - 每日频控上限：每天最多主动发起 4 次；
+ *    - 每日频控上限：每天最多主动发起 5 次（路线一与二共享总配额，早晚各 1 次，其余留给白天空闲冒泡）；
  *    - 冷却退避机制：两次主动发起间至少冷却 2.5 小时；
  *    - 连续未回复退避：若连续发了主动问候而主人未曾回复，下次等待时间加长；连续 2 次无回复自动休眠，绝不连环轰炸。
  * 4. 智能驱动：
@@ -34,22 +34,22 @@ export const qqbotSettingsPage = {
     // 全局基础配置
     { key: 'enabled', type: 'bool', label: '启用主动关怀总开关', default: true, hint: '总开关：关闭后将停止一切主动问候与冒泡' },
     { key: 'targetOpenid', type: 'string', label: '主人 OpenID', default: '5181E4F10DE3C856F437AAD225A26462', hint: '接收主动关怀的目标私聊 OpenID' },
-    { key: 'dailyMax', type: 'number', label: '每天最大关怀次数', default: 4, hint: '每天最多主动搭话次数，防止过度打扰（默认 4 次）' },
+    { key: 'dailyMax', type: 'number', label: '每天最大关怀次数', default: 5, hint: '路线一与二共享的每日总额度（默认 5 次：早晚各占 1 次，其余 3 次留给白天空闲冒泡）' },
     { key: 'minIntervalHours', type: 'number', label: '两次关怀最小间隔(小时)', default: 2.5, hint: '两次主动发送之间的最小冷却时间（默认 2.5 小时）' },
     { key: 'dndStart', type: 'string', label: '免打扰开始时间', default: '23:30', hint: '夜间免打扰起始（24小时制 HH:mm）' },
     { key: 'dndEnd', type: 'string', label: '免打扰结束时间', default: '08:30', hint: '早晨免打扰结束（24小时制 HH:mm）' },
 
     // 路线一：作息时段定时问候
-    { key: 'windowGreetingEnabled', type: 'bool', label: '【路线一】开启作息时段关怀', default: true, hint: '在早安、午后、傍晚、晚安等关键时间窗口主动问候（每个窗口当天最多触发 1 次）' },
+    { key: 'windowGreetingEnabled', type: 'bool', label: '【路线一】开启作息时段关怀', default: true, hint: '在早安、晚安等关键时间窗口主动问候（每个窗口当天最多触发 1 次）' },
     { key: 'morningEnabled', type: 'bool', label: '└─ 开启早安问候', default: true },
     { key: 'morningStart', type: 'string', label: '└─ 早安开始时间', default: '08:30' },
     { key: 'morningEnd', type: 'string', label: '└─ 早安结束时间', default: '09:30' },
 
-    { key: 'afternoonEnabled', type: 'bool', label: '└─ 开启午后提神', default: true },
+    { key: 'afternoonEnabled', type: 'bool', label: '└─ 开启午后提神', default: false, hint: '默认关闭，按需开启' },
     { key: 'afternoonStart', type: 'string', label: '└─ 午后开始时间', default: '14:00' },
     { key: 'afternoonEnd', type: 'string', label: '└─ 午后结束时间', default: '14:30' },
 
-    { key: 'eveningEnabled', type: 'bool', label: '└─ 开启傍晚提醒', default: true },
+    { key: 'eveningEnabled', type: 'bool', label: '└─ 开启傍晚提醒', default: false, hint: '默认关闭，按需开启' },
     { key: 'eveningStart', type: 'string', label: '└─ 傍晚开始时间', default: '18:30' },
     { key: 'eveningEnd', type: 'string', label: '└─ 傍晚结束时间', default: '19:30' },
 
@@ -150,22 +150,22 @@ export default {
         // 全局
         enabled: state.enabled ?? true,
         targetOpenid: state.targetOpenid || DEFAULT_MASTER_OPENID,
-        dailyMax: state.dailyMax ?? 4,
+        dailyMax: state.dailyMax ?? 5,
         minIntervalHours: state.minIntervalHours ?? 2.5,
         dndStart: state.dndStart || '23:30',
         dndEnd: state.dndEnd || '08:30',
 
-        // 路线一：时段问候
+        // 路线一：时段问候（默认开启早安、晚安；午后与傍晚默认关闭）
         windowGreetingEnabled: state.windowGreetingEnabled ?? true,
         morningEnabled: state.morningEnabled ?? true,
         morningStart: state.morningStart || '08:30',
         morningEnd: state.morningEnd || '09:30',
 
-        afternoonEnabled: state.afternoonEnabled ?? true,
+        afternoonEnabled: state.afternoonEnabled ?? false,
         afternoonStart: state.afternoonStart || '14:00',
         afternoonEnd: state.afternoonEnd || '14:30',
 
-        eveningEnabled: state.eveningEnabled ?? true,
+        eveningEnabled: state.eveningEnabled ?? false,
         eveningStart: state.eveningStart || '18:30',
         eveningEnd: state.eveningEnd || '19:30',
 

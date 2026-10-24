@@ -58,7 +58,7 @@ export default {
     const conf = {
       enabled: state.enabled ?? true,
       targetOpenid: state.targetOpenid || DEFAULT_MASTER_OPENID,
-      dailyMax: state.dailyMax ?? 4,
+      dailyMax: state.dailyMax ?? 5,
       minIntervalHours: state.minIntervalHours ?? 2.5,
       dndStart: state.dndStart || '23:30',
       dndEnd: state.dndEnd || '08:30',
@@ -68,11 +68,11 @@ export default {
       morningStart: state.morningStart || '08:30',
       morningEnd: state.morningEnd || '09:30',
 
-      afternoonEnabled: state.afternoonEnabled ?? true,
+      afternoonEnabled: state.afternoonEnabled ?? false,
       afternoonStart: state.afternoonStart || '14:00',
       afternoonEnd: state.afternoonEnd || '14:30',
 
-      eveningEnabled: state.eveningEnabled ?? true,
+      eveningEnabled: state.eveningEnabled ?? false,
       eveningStart: state.eveningStart || '18:30',
       eveningEnd: state.eveningEnd || '19:30',
 
