@@ -26,6 +26,30 @@
         "tools/hello-pack.mjs",
         "commands/打包示例.mjs"
       ]
+    },
+    {
+      "id": "useful-tools",
+      "name": "实用小工具",
+      "author": "做早饭",
+      "version": "1.0.0",
+      "description": "几个日常会用到的扩展：查今天日期、掷骰子、随机抽签（签文可在面板里自定义）。",
+      "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins/tree/main/packs/useful-tools",
+      "repo": "zaofan-make/dsh-qqbot-plugins",
+      "path": "packs/useful-tools",
+      "tags": [
+        "工具",
+        "日常"
+      ],
+      "kinds": [
+        "tools",
+        "commands"
+      ],
+      "files": [
+        "qqbot-pack.json",
+        "tools/today.mjs",
+        "tools/dice.mjs",
+        "commands/抽签.mjs"
+      ]
     }
   ],
   "note": "files = 相对 path 的文件清单。下载走 cdn.jsdelivr.net，不需要 GitHub 目录 API（墙内连不上）。"
