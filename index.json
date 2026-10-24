@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "updated": "2026-10-24",
+  "plugins": [
+    {
+      "id": "demo-author",
+      "name": "示例扩展包",
+      "author": "做早饭",
+      "version": "1.0.0",
+      "description": "演示扩展包结构：按 tools/commands/… 放就能被面板扫到；含一个工具、一个带自定义设置面板的命令。",
+      "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins/tree/main/packs/demo-author",
+      "repo": "zaofan-make/dsh-qqbot-plugins",
+      "path": "packs/demo-author",
+      "tags": [
+        "示例",
+        "入门"
+      ],
+      "kinds": [
+        "tools",
+        "commands"
+      ]
+    }
+  ]
+}
