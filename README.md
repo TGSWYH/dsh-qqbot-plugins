@@ -1,0 +1,83 @@
+# DSH QQ 机器人插件市场
+
+这是 [dsh-qqbot](https://github.com/zaofan-make/dsh-qqbot) 的**插件索引仓库**。
+机器人面板里的「市场」页签读的就是本仓库根目录的 `index.json`。
+
+## 收录规则
+
+每个插件是仓库里一个**独立目录**（约定放在 `packs/<id>/`），目录结构与机器人本地的
+`extension-packs/<id>/` 完全一致：
+
+```
+packs/<id>/
+  qqbot-pack.json        # 可选：{ name, author, version, description, homepage }
+  tools/*.mjs            # 模型可调用的工具
+  commands/*.mjs         # / 开头的斜杠命令
+  hooks/ inbound/ outbound/ botplay/
+```
+
+然后在 `index.json` 的 `plugins` 里加一条：
+
+```json
+{
+  "id": "your-pack",
+  "name": "你的扩展包",
+  "author": "你的名字",
+  "version": "1.0.0",
+  "description": "一句话介绍",
+  "repo": "zaofan-make/dsh-qqbot-plugins",
+  "path": "packs/your-pack",
+  "tags": ["工具", "示例"],
+  "kinds": ["tools", "commands"]
+}
+```
+
+## 工具怎么写
+
+```js
+// tools/hello.mjs
+export default {
+  name: 'hello_pack',
+  description: '打个招呼',
+  inputSchema: { type: 'object', properties: { name: { type: 'string' } } },
+  run: async (args) => `你好，${args.name || '世界'}`,
+};
+```
+
+## 命令怎么写
+
+```js
+// commands/hello.mjs
+export default {
+  name: ['hello', '你好'],           // 可以是数组（多个别名）
+  description: '打招呼',
+  usage: '/hello [名字]',
+  handler: (ctx) => `你好呀 ${ctx?.command?.raw || ''}`,   // ← 是 handler，不是 run；返回字符串
+};
+```
+
+## 自定义设置面板（可选）
+
+在文件里再导出一个 `qqbotSettingsPage`，面板里就会出现 ⚙，用户填的值会存成配置，
+执行时通过 `ctx.config` 读到：
+
+```js
+export const qqbotSettingsPage = {
+  title: '我的设置',
+  schema: [
+    { key: 'text',  type: 'string', label: '回复文字', default: '你好' },
+    { key: 'times', type: 'number', label: '重复次数', default: 1 },
+    { key: 'on',    type: 'bool',   label: '启用',     default: true },
+    { key: 'tags',  type: 'list',   label: '标签' },
+    { key: 'mode',  type: 'select', label: '模式', options: ['普通', '高级'] },
+  ],
+};
+```
+
+## 提交新插件
+
+直接提 PR：加 `packs/<id>/` 目录，并在 `index.json` 里补一条。
+
+## 许可
+
+各插件版权归各自作者，本仓库仅作索引与分发。
