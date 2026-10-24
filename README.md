@@ -47,10 +47,14 @@ packs/<id>/
 export default {
   name: 'hello_pack',
   description: '打个招呼',
-  inputSchema: { type: 'object', properties: { name: { type: 'string' } } },
+  inputSchema: { name: { type: 'string', description: '名字' } },   // ← 扁平写法！
   run: async (args) => `你好，${args.name || '世界'}`,
 };
 ```
+
+> ⚠️ ** 是 dsh 的扁平写法**：直接 ，
+> **不要**包成标准 JSON Schema 的 （会被  以
+>  拒掉）。
 
 ## 命令怎么写
 
