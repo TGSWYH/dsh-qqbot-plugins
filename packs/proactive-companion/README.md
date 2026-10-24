@@ -85,6 +85,15 @@ proactive-companion/
 
 ---
 
+## 📝 版本更新历史 (Changelog)
+
+### v1.0.1 (2026-10-24)
+- **底层直发通道升级**：适配 QQ 开放平台官方 REST 接口（`/v2/users/{openid}/messages`），自带 AccessToken 鉴权与刷新机制，确保机器人即使在冷启动或无活动会话时也能稳定向私聊推送关怀。
+- **目标 OpenID 智能推断**：优先读取设置面板配置，未配置时自动跟随插件配置的第一主人，免除繁琐手填。
+- **官方市场规范对齐**：作者署名统一为 `TGSWYH`，完善配套封面美术资源与中文文档。
+
+---
+
 ## 🚀 生效方法
 
 扩展包源码位于 `D:\dsh workspace\dshqqbot\extension-packs\proactive-companion`。
