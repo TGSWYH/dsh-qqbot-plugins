@@ -120,34 +120,30 @@ for (const rel of targets) {
     }
   }
 
-  // ⑤ 参数定义：字段名和形状都得对（2026-10-25 补，起因 PR #2）
+  // ⑤ 参数定义形状必须是「扁平字段表」（2026-10-25 改，起因 PR #2）
   //
-  //   原来只查了「inputSchema 包 type:'object'」。PR #2 实际写的是 `parameters:` ——
-  //   字段名根本不对，原正则直接跳过，静默放过。
-  //   dsh 读的是 inputSchema，写 parameters 等于没有参数定义（工具能注册但没参数），
-  //   比报错更难查，所以这里必须拦。
+  //   ⚠️ 更正一次：`parameters` 是 **合法别名**，不要拦它。
+  //   dsh 归一化时是 `obj.inputSchema ?? obj.parameters ?? {}`（src/features/extension-store.ts:225），
+  //   所以两者都认，只是值必须是扁平字段表。
+  //
+  //   真正会坏的是「包成标准 JSON Schema」：
+  //     { type: 'object', properties: { action: {...} } }
+  //   dsh 取到的是整个对象，然后拿它的**顶层键**当参数名
+  //   → 模型看到的参数是 type / properties，真正的 action 藏在里面看不见。
   for (const f of scripts) {
     let src = '';
     try { src = readFileSync(f.abs, 'utf8'); } catch { continue; }
     const top = f.rel.split('/')[0];
     if (top !== 'tools' && top !== 'commands') continue;
 
-    // ⑤-1 字段名写错：parameters / params / args / schema（正确是 inputSchema）
-    const badName = /(?:^|[^A-Za-z0-9_$])(parameters|params|args|schema)\s*:/.exec(src);
-    if (badName) {
+    // 允许 { 之后换行；只往前看 80 字符，避免误匹配整个文件
+    const wrapped = /(?:inputSchema|parameters)\s*:\s*\{[\s\S]{0,80}?type\s*:\s*['"]object['"]/;
+    if (wrapped.test(src)) {
       err(
-        id + ': ' + f.rel + ' 用了 ' + badName[1] + ' 字段（dsh 不认）\n' +
-        '      参数定义字段名必须是 inputSchema，例如：inputSchema: { action: { type: string, description: ... } }'
-      );
-    }
-
-    // ⑤-2 标准 JSON Schema 包法（允许 { 之后换行；只往前看 80 字符，避免误匹配整个文件）
-    const flat = /inputSchema\s*:\s*\{[\s\S]{0,80}?type\s*:\s*['"]object['"]/;
-    if (flat.test(src)) {
-      err(
-        id + ': ' + f.rel + ' 的 inputSchema 用了标准 JSON Schema 包法\n' +
+        id + ': ' + f.rel + ' 的参数定义包成了标准 JSON Schema\n' +
         '      dsh 只认扁平写法：inputSchema: { 属性名: { type, description } }\n' +
-        '      否则注册时报 unsupported JSON schema: parameters.type must be a value schema object'
+        '      包了 type/object 之后，dsh 会把 type 和 properties 当成参数名，\n' +
+        '      真正的字段全藏在 properties 里 → 模型看不到、调不动'
       );
     }
   }
