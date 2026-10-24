@@ -120,11 +120,30 @@ for (const rel of targets) {
     }
   }
 
-  // ⑤ inputSchema 必须是 dsh 扁平写法（标准 JSON Schema 包法会被 defineTool 拒）
+  // ⑤ 参数定义：字段名和形状都得对（2026-10-25 补，起因 PR #2）
+  //
+  //   原来只查了「inputSchema 包 type:'object'」。PR #2 实际写的是 `parameters:` ——
+  //   字段名根本不对，原正则直接跳过，静默放过。
+  //   dsh 读的是 inputSchema，写 parameters 等于没有参数定义（工具能注册但没参数），
+  //   比报错更难查，所以这里必须拦。
   for (const f of scripts) {
     let src = '';
     try { src = readFileSync(f.abs, 'utf8'); } catch { continue; }
-    if (/inputSchema\s*:\s*\{\s*type\s*:\s*['"]object['"]/.test(src)) {
+    const top = f.rel.split('/')[0];
+    if (top !== 'tools' && top !== 'commands') continue;
+
+    // ⑤-1 字段名写错：parameters / params / args / schema（正确是 inputSchema）
+    const badName = /(?:^|[^A-Za-z0-9_$])(parameters|params|args|schema)\s*:/.exec(src);
+    if (badName) {
+      err(
+        id + ': ' + f.rel + ' 用了 ' + badName[1] + ' 字段（dsh 不认）\n' +
+        '      参数定义字段名必须是 inputSchema，例如：inputSchema: { action: { type: string, description: ... } }'
+      );
+    }
+
+    // ⑤-2 标准 JSON Schema 包法（允许 { 之后换行；只往前看 80 字符，避免误匹配整个文件）
+    const flat = /inputSchema\s*:\s*\{[\s\S]{0,80}?type\s*:\s*['"]object['"]/;
+    if (flat.test(src)) {
       err(
         id + ': ' + f.rel + ' 的 inputSchema 用了标准 JSON Schema 包法\n' +
         '      dsh 只认扁平写法：inputSchema: { 属性名: { type, description } }\n' +
