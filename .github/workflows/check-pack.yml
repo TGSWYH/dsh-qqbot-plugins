@@ -1,12 +1,16 @@
 name: check-pack
 
 # PR 检查：把明显有问题的扩展包挡在合并之前。
-#   不通过时 PR 上会红叉，主人连看都不用看。
+#
+# 逻辑全在 scripts/check-packs.mjs 里（node），不写 shell 逻辑 ——
+# Actions 的 run 默认是 `bash -e`，`[ -z "$x" ] && continue` 这类写法
+# 在条件为假时返回 1，会把整个 step 直接判失败（2026-10-24 踩过这个坑）。
 on:
   pull_request:
     paths:
       - 'packs/**'
-      - 'scripts/build-index.mjs'
+      - 'scripts/**'
+      - '.github/workflows/check-pack.yml'
 
 jobs:
   check:
@@ -20,71 +24,17 @@ jobs:
         with:
           node-version: 20
 
-      - name: 找出本次改动涉及的插件目录
+      - name: 找出本次改动的插件目录
         id: packs
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
-          dirs=$(git diff --name-only "$base" "$head" -- 'packs/' | cut -d/ -f1-2 | sort -u)
-          echo "改动目录："
-          echo "$dirs"
-          echo "dirs<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$dirs" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          dirs=$(git diff --name-only "$base" "$head" -- 'packs/' | cut -d/ -f1-2 | sort -u | tr '\n' ' ')
+          echo "改动目录: ${dirs:-（无）}"
+          echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
 
-      - name: 校验 qqbot-pack.json
-        run: |
-          fail=0
-          while IFS= read -r d; do
-            [ -z "$d" ] && continue
-            f="$d/qqbot-pack.json"
-            if [ ! -f "$f" ]; then echo "❌ 缺 $f"; fail=1; continue; fi
-            node -e "
-              const m = JSON.parse(require('fs').readFileSync('$f','utf8'));
-              const miss = ['name','author','version'].filter(k => !m[k]);
-              if (miss.length) { console.log('❌ $d 缺字段: ' + miss.join(',')); process.exit(1); }
-              const dirId = '$d'.split('/')[1];
-              if (!/^[a-zA-Z0-9_-]+$/.test(dirId)) { console.log('❌ 目录名只能用字母数字-_ : ' + dirId); process.exit(1); }
-              console.log('✓ $d  ' + m.name + ' v' + m.version);
-            " || fail=1
-          done <<< "${{ steps.packs.outputs.dirs }}"
-          exit $fail
-
-      - name: 语法检查所有 .mjs/.js/.cjs
-        run: |
-          fail=0
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            if ! node --check "$f" 2>/dev/null; then
-              echo "❌ 语法错误: $f"
-              node --check "$f" || true
-              fail=1
-            fi
-          done <<< "$(find packs -type f \( -name '*.mjs' -o -name '*.js' -o -name '*.cjs' \))"
-          [ $fail -eq 0 ] && echo "✓ 全部通过 node --check"
-          exit $fail
-
-      - name: 禁止打包二进制/可执行文件
-        run: |
-          bad=$(find packs -type f \( -name '*.exe' -o -name '*.dll' -o -name '*.bat' -o -name '*.cmd' -o -name '*.ps1' -o -name '*.so' -o -name '*.dylib' \) || true)
-          if [ -n "$bad" ]; then echo "❌ 不允许的文件:"; echo "$bad"; exit 1; fi
-          big=$(find packs -type f -size +2M || true)
-          if [ -n "$big" ]; then echo "❌ 单个文件超过 2MB:"; echo "$big"; exit 1; fi
-          echo "✓ 无二进制/超大文件"
-
-      - name: 检查 inputSchema 是否为 dsh 扁平写法
-        run: |
-          fail=0
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
-            case "$f" in packs/*/tools/*|packs/*/commands/*) ;; *) continue ;; esac
-            if grep -qE "inputSchema:\s*\{\s*type:\s*['\"]object['\"]" "$f"; then
-              echo "❌ $f 的 inputSchema 用了标准 JSON Schema 包法，dsh 只认扁平写法（属性名 → 类型描述）"
-              fail=1
-            fi
-          done <<< "$(find packs -type f \( -name '*.mjs' -o -name '*.js' -o -name '*.cjs' \))"
-          [ $fail -eq 0 ] && echo "✓ inputSchema 格式正确"
-          exit $fail
+      - name: 校验扩展包
+        run: node scripts/check-packs.mjs ${{ steps.packs.outputs.dirs }}
 
       - name: 预演生成索引（不提交）
         env:
@@ -92,4 +42,4 @@ jobs:
           GITHUB_REF_NAME: ${{ github.head_ref }}
         run: |
           node scripts/build-index.mjs
-          node -e "const j=require('./index.json'); console.log('✓ 索引可生成，插件数:', j.plugins.length)"
+          node -e "const j=require('./index.json'); console.log('✓ 索引可生成，插件数: '+j.plugins.length)"
