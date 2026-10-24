@@ -1,56 +1,47 @@
 {
-  "version": 2,
+  "version": 3,
   "updated": "2026-10-24",
+  "note": "本文件由 .github/workflows/build-index.yml 自动生成，请勿手改；新增插件只要在 packs/ 下建目录。",
   "plugins": [
     {
       "id": "demo-author",
       "name": "示例扩展包",
       "author": "做早饭",
       "version": "1.0.0",
-      "description": "演示扩展包结构：按 tools/commands/… 放就能被面板扫到；含一个工具、一个带自定义设置面板的命令。",
-      "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins/tree/main/packs/demo-author",
+      "description": "演示：扩展放在独立目录里，按 tools/commands/… 结构摆放，面板会按包分组显示",
       "repo": "zaofan-make/dsh-qqbot-plugins",
       "path": "packs/demo-author",
-      "tags": [
-        "示例",
-        "入门"
-      ],
+      "tags": [],
       "kinds": [
-        "tools",
-        "commands"
+        "commands",
+        "tools"
       ],
-      "cover": "https://raw.githubusercontent.com/zaofan-make/dsh-qqbot-plugins/main/packs/demo-author/cover.png",
-      "coverAlt": "鲸鱼娘女仆装示例封面",
       "files": [
-        "qqbot-pack.json",
-        "tools/hello-pack.mjs",
-        "commands/打包示例.mjs"
-      ]
+        "commands/打包示例.mjs",
+        "tools/hello-pack.mjs"
+      ],
+      "homepage": "https://github.com/zaofan-make/dsh-qqbot",
+      "cover": "https://cdn.jsdelivr.net/gh/zaofan-make/dsh-qqbot-plugins@main/packs/demo-author/cover.png"
     },
     {
       "id": "useful-tools",
       "name": "实用小工具",
       "author": "做早饭",
       "version": "1.0.0",
-      "description": "几个日常会用到的扩展：查今天日期、掷骰子、随机抽签（签文可在面板里自定义）。",
-      "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins/tree/main/packs/useful-tools",
+      "description": "几个日常会用到的扩展：今天日期、掷骰子、随机抽签。",
       "repo": "zaofan-make/dsh-qqbot-plugins",
       "path": "packs/useful-tools",
-      "tags": [
-        "工具",
-        "日常"
-      ],
+      "tags": [],
       "kinds": [
-        "tools",
-        "commands"
+        "commands",
+        "tools"
       ],
       "files": [
-        "qqbot-pack.json",
-        "tools/today.mjs",
+        "commands/抽签.mjs",
         "tools/dice.mjs",
-        "commands/抽签.mjs"
-      ]
+        "tools/today.mjs"
+      ],
+      "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins/tree/main/packs/useful-tools"
     }
-  ],
-  "note": "files = 相对 path 的文件清单。下载走 cdn.jsdelivr.net，不需要 GitHub 目录 API（墙内连不上）。"
+  ]
 }
