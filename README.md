@@ -29,10 +29,14 @@ packs/<id>/
   "path": "packs/your-pack",
   "tags": ["工具", "示例"],
   "kinds": ["tools", "commands"],
+  "files": ["qqbot-pack.json", "tools/hello.mjs", "commands/hello.mjs"],
   "cover": "https://raw.githubusercontent.com/zaofan-make/dsh-qqbot-plugins/main/packs/your-pack/cover.png"
 
 }
 ```
+
+`files` **必填**，列出 `path` 目录下**所有文件**（相对路径）。装的时候按这个清单逐个下载，
+不走 GitHub 目录 API —— 那个接口在墙内连不上。
 
 `cover` 可选，指向仓库里的图片（png/jpg/webp），面板会把它当卡片封面。
 
