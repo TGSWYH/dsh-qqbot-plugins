@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "updated": "2026-10-24",
   "plugins": [
     {
@@ -20,7 +20,13 @@
         "commands"
       ],
       "cover": "https://raw.githubusercontent.com/zaofan-make/dsh-qqbot-plugins/main/packs/demo-author/cover.png",
-      "coverAlt": "鲸鱼娘女仆装示例封面"
+      "coverAlt": "鲸鱼娘女仆装示例封面",
+      "files": [
+        "qqbot-pack.json",
+        "tools/hello-pack.mjs",
+        "commands/打包示例.mjs"
+      ]
     }
-  ]
+  ],
+  "note": "files = 相对 path 的文件清单。下载走 cdn.jsdelivr.net，不需要 GitHub 目录 API（墙内连不上）。"
 }
