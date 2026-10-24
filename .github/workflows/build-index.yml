@@ -1,0 +1,43 @@
+name: build-index
+
+# 合并到 main 后自动重建 index.json。
+#   作者 PR 里只加 packs/<id>/ 目录，不碰 index.json ⇒ 多人同时提 PR 零冲突。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packs/**'
+      - 'scripts/build-index.mjs'
+      - '.github/workflows/build-index.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 生成 index.json
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: node scripts/build-index.mjs
+
+      - name: 提交变更（有变化才提交）
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- index.json; then
+            echo "index.json 无变化，跳过"
+          else
+            git add index.json
+            git commit -m "chore: 自动重建 index.json [skip ci]"
+            git push
+          fi
