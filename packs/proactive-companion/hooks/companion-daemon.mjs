@@ -225,25 +225,42 @@ export default {
         return;
       }
 
-      // 3. 尝试获取最近一次私聊交互时间
-      // 检查 .qqbot/msg-history 中的最新记录
+      // 3. 尝试获取最近一次主人与私聊交互时间
+      // 检查 .qqbot/msg-history 中的最新记录（优先兼容 dataRoot，避免因相对路径找不到）
       try {
-        const histDir = join(process.cwd(), '.qqbot', 'msg-history', `c2c_${state.targetOpenid}`);
+        const root = env.dataRoot || join(process.cwd(), 'dshqqbot');
+        const histDir = join(root, '.qqbot', 'msg-history', `c2c_${state.targetOpenid}`);
         const todayFile = join(histDir, `${todayStr}.jsonl`);
         if (existsSync(todayFile)) {
           const lines = readFileSync(todayFile, 'utf8').trim().split('\n').filter(Boolean);
           if (lines.length > 0) {
-            const lastLine = JSON.parse(lines[lines.length - 1]);
-            const ts = lastLine.ts || (lastLine.time ? new Date(lastLine.time).getTime() : 0);
-            if (ts > state.lastInteractionTs) {
-              state.lastInteractionTs = ts;
-              // 主人有互动，重置连续未回复计数
-              state.consecutiveBubblesWithoutReply = 0;
+            // 从后往前扫，分别寻找最近一次任意消息时间和主人发言时间
+            for (let i = lines.length - 1; i >= 0; i--) {
+              try {
+                const item = JSON.parse(lines[i]);
+                const ts = item.t || item.ts || (item.time ? new Date(item.time).getTime() : 0);
+                if (!ts) continue;
+
+                // 记录整场会话最新活动时间
+                if (ts > state.lastInteractionTs) {
+                  state.lastInteractionTs = ts;
+                }
+
+                // 判断是否为主人的主动发言（非机器人自己 me:true）
+                const isUserMsg = !item.me && item.s !== 'self' && item.s === state.targetOpenid;
+                if (isUserMsg) {
+                  // 如果主人最新的这条发言发生在我们上次主动关怀之后，重置连续未回复计数
+                  if (ts > (state.lastBubbleTs || 0)) {
+                    state.consecutiveBubblesWithoutReply = 0;
+                  }
+                  break;
+                }
+              } catch { /* 忽略损坏行 */ }
             }
           }
         }
       } catch (e) {
-        // 读取失败则沿用已记录的 lastInteractionTs
+        // 读取失败则沿用已记录的状态
       }
 
       // 4. 连续未回复退避
