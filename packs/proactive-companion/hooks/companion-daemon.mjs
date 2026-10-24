@@ -21,7 +21,7 @@
  *    - 兜底文案库通过直流通道路由。
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
