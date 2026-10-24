@@ -33,7 +33,7 @@ export const qqbotSettingsPage = {
   schema: [
     // 全局基础配置
     { key: 'enabled', type: 'bool', label: '启用主动关怀总开关', default: true, hint: '总开关：关闭后将停止一切主动问候与冒泡' },
-    { key: 'targetOpenid', type: 'string', label: '主人 OpenID', default: '5181E4F10DE3C856F437AAD225A26462', hint: '接收主动关怀的目标私聊 OpenID' },
+    { key: 'targetOpenid', type: 'string', label: '主人 OpenID', default: '', hint: '接收主动关怀的目标私聊 OpenID（留空时将自动从最近私聊过的记录或系统台账中获取）' },
     { key: 'dailyMax', type: 'number', label: '每天最大关怀次数', default: 5, hint: '路线一与二共享的每日总额度（默认 5 次：早晚各占 1 次，其余 3 次留给白天空闲冒泡）' },
     { key: 'minIntervalHours', type: 'number', label: '两次关怀最小间隔(小时)', default: 2.5, hint: '两次主动发送之间的最小冷却时间（默认 2.5 小时）' },
     { key: 'dndStart', type: 'string', label: '免打扰开始时间', default: '23:30', hint: '夜间免打扰起始（24小时制 HH:mm）' },
@@ -121,8 +121,25 @@ export default {
     const logger = env.logger || console;
     logger.info('[companion] 主动陪伴守护进程已启动（双驱动并行架构）');
 
-    // 默认主人的 openid
-    const DEFAULT_MASTER_OPENID = '5181E4F10DE3C856F437AAD225A26462';
+    // 自动探测最近的主人私聊 OpenID（若用户未显式配置）
+    function detectLatestC2COpenid() {
+      try {
+        const root = env.dataRoot || join(process.cwd(), 'dshqqbot');
+        const knownFile = join(root, '表情包', 'known-chats.jsonl');
+        if (existsSync(knownFile)) {
+          const lines = readFileSync(knownFile, 'utf8').trim().split('\n').filter(Boolean);
+          for (let i = lines.length - 1; i >= 0; i--) {
+            try {
+              const item = JSON.parse(lines[i]);
+              if (item.scope === 'c2c' && item.id) {
+                return item.id;
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+      return '';
+    }
 
     // 加载或初始化配置与持久化状态
     async function getStoreState() {
@@ -146,10 +163,13 @@ export default {
         }
       } catch {}
 
+      // 如果未配置 targetOpenid，则动态自动嗅探最近与机器人发起私聊的 C2C OpenID
+      const effectiveOpenid = state.targetOpenid || detectLatestC2COpenid() || '';
+
       return {
         // 全局
         enabled: state.enabled ?? true,
-        targetOpenid: state.targetOpenid || DEFAULT_MASTER_OPENID,
+        targetOpenid: effectiveOpenid,
         dailyMax: state.dailyMax ?? 5,
         minIntervalHours: state.minIntervalHours ?? 2.5,
         dndStart: state.dndStart || '23:30',

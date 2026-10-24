@@ -5,7 +5,26 @@
  * （例如当主人说“接下来几个小时我要专心开会别打扰我”时自动触发暂缓关怀）。
  */
 
-const DEFAULT_MASTER_OPENID = '5181E4F10DE3C856F437AAD225A26462';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+// 动态嗅探最近一次私聊的 OpenID
+function detectLatestC2COpenid(env) {
+  try {
+    const root = env?.dataRoot || join(process.cwd(), 'dshqqbot');
+    const knownFile = join(root, '表情包', 'known-chats.jsonl');
+    if (existsSync(knownFile)) {
+      const lines = readFileSync(knownFile, 'utf8').trim().split('\n').filter(Boolean);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const item = JSON.parse(lines[i]);
+          if (item.scope === 'c2c' && item.id) return item.id;
+        } catch {}
+      }
+    }
+  } catch {}
+  return '';
+}
 
 export default {
   name: 'companion_manage',
@@ -52,7 +71,7 @@ export default {
 
     const conf = {
       enabled: state.enabled ?? true,
-      targetOpenid: state.targetOpenid || DEFAULT_MASTER_OPENID,
+      targetOpenid: state.targetOpenid || detectLatestC2COpenid(ctx?.env),
       dailyMax: state.dailyMax ?? 5,
       minIntervalHours: state.minIntervalHours ?? 2.5,
       dndStart: state.dndStart || '23:30',
