@@ -163,8 +163,35 @@ export default {
         }
       } catch {}
 
-      // 如果未配置 targetOpenid，则动态自动嗅探最近与机器人发起私聊的 C2C OpenID
-      const effectiveOpenid = state.targetOpenid || detectLatestC2COpenid() || '';
+      // 如果设置中未配置 targetOpenid，则动态自动嗅探最近与机器人发起私聊的 C2C OpenID
+      let effectiveOpenid = state.targetOpenid;
+      if (!effectiveOpenid) {
+        effectiveOpenid = detectLatestC2COpenid() || '';
+        // 如果扫描到了有效的私聊对象，自动持久化写回到插件配置里
+        if (effectiveOpenid) {
+          logger.info(`[companion] 自动识别到主人最近私聊 OpenID: ${effectiveOpenid}，已自动同步写入设置`);
+          state.targetOpenid = effectiveOpenid;
+          try {
+            const root = env.dataRoot || join(process.cwd(), 'dshqqbot');
+            const cfgDir = join(root, '.qqbot-extensions', '.state', 'ext-config');
+            if (!existsSync(cfgDir)) {
+              mkdirSync(cfgDir, { recursive: true });
+            }
+            const extCfgPath = join(cfgDir, 'companion-daemon.json');
+            let existingCfg = {};
+            if (existsSync(extCfgPath)) {
+              try { existingCfg = JSON.parse(readFileSync(extCfgPath, 'utf8')); } catch {}
+            }
+            existingCfg.targetOpenid = effectiveOpenid;
+            writeFileSync(extCfgPath, JSON.stringify(existingCfg, null, 2), 'utf8');
+          } catch (e) {
+            logger.warn(`[companion] 自动回写配置失败: ${e.message}`);
+          }
+          if (env.store && typeof env.store.save === 'function') {
+            env.store.save({ ...state, targetOpenid: effectiveOpenid }).catch(() => {});
+          }
+        }
+      }
 
       return {
         // 全局
