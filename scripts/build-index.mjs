@@ -124,6 +124,8 @@ for (const id of packDirs.sort()) {
     name: String(meta.name || id),
     author: String(meta.author || '未知'),
     version: String(meta.version || '0.0.0'),
+    // 2026-10-25：扩展包可声明「需要的最低插件版本」，市场卡片据此对照当前插件版本
+    ...(meta.minPluginVersion ? { minPluginVersion: String(meta.minPluginVersion) } : {}),
     description: String(meta.description || ''),
     repo: REPO,
     path: 'packs/' + id,
