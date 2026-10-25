@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 export const CONFIG_KEYS = [
-  'enabled', 'targetOpenid', 'displayName', 'dailyMax', 'minIntervalHours', 'dndStart', 'dndEnd',
+  'enabled', 'targetOpenid', 'dailyMax', 'minIntervalHours', 'dndStart', 'dndEnd',
   'windowGreetingEnabled', 'morningEnabled', 'morningStart', 'morningEnd',
   'afternoonEnabled', 'afternoonStart', 'afternoonEnd', 'eveningEnabled',
   'eveningStart', 'eveningEnd', 'nightEnabled', 'nightStart', 'nightEnd',
@@ -57,7 +57,6 @@ export function normalizeConfig(value = {}) {
   };
   const time = (v, fallback) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(v || '')) ? v : fallback;
   out.enabled = out.enabled !== false;
-  out.displayName = typeof out.displayName === 'string' ? out.displayName.trim().slice(0, 80) || '主人' : '主人';
   out.dailyMax = Number.isInteger(Number(out.dailyMax)) && Number(out.dailyMax) >= 0 ? Number(out.dailyMax) : 5;
   out.minIntervalHours = value.minIntervalHours !== null && String(out.minIntervalHours ?? "").trim() !== "" && Number.isFinite(Number(out.minIntervalHours)) && Number(out.minIntervalHours) >= 0 ? Number(out.minIntervalHours) : 2.5;
   out.idleHoursThreshold = Number.isFinite(Number(out.idleHoursThreshold)) && Number(out.idleHoursThreshold) >= 0 ? Number(out.idleHoursThreshold) : 3;
@@ -136,7 +135,14 @@ export function resolveTargetOpenid(env, state = {}, ext = readExtConfig(env)) {
   // Explicit panel configuration wins; legacy store is second; the host owner list
   // is the only implicit fallback. Never choose an arbitrary recent C2C chat:
   // any stranger can otherwise become the recipient of proactive messages.
-  const candidates = [ext.targetOpenid, state.targetOpenid, env?.config?.owners?.[0], env?.caps?.owners?.[0]];
+  const ownerLists = [
+    env?.owners,
+    env?.caps?.owners,
+    env?.config?.groupAdmin?.owners,
+    env?.config?.owners,
+  ];
+  const ownerFallbacks = ownerLists.flatMap((list) => Array.isArray(list) ? list : []);
+  const candidates = [ext.targetOpenid, state.targetOpenid, ...ownerFallbacks];
   for (const candidate of candidates) {
     const safe = safeOpenid(candidate);
     if (safe) return safe;
@@ -145,16 +151,35 @@ export function resolveTargetOpenid(env, state = {}, ext = readExtConfig(env)) {
 }
 
 export function isOwnerContext(ctx = {}) {
-  if (ctx?.isOwner === true || ctx?.permissions?.isOwner === true || ctx?.sender?.isOwner === true) return true;
+  if (
+    ctx?.user?.isOwner === true ||
+    ctx?.performer?.isOwner === true ||
+    ctx?.isOwner === true ||
+    ctx?.permissions?.isOwner === true ||
+    ctx?.sender?.isOwner === true
+  ) return true;
   const env = ctx?.env || ctx;
-  const list = env?.config?.owners || env?.caps?.owners || [];
-  const owners = Array.isArray(list) ? list.map(String) : [];
-  if (!owners.length) return false;
+  const lists = [
+    ctx?.owners,
+    ctx?.caps?.owners,
+    env?.owners,
+    env?.caps?.owners,
+    env?.config?.groupAdmin?.owners,
+    env?.config?.owners,
+  ];
+  const owners = [...new Set(lists.flatMap((list) => Array.isArray(list) ? list.map(String) : []))];
   const actor = String(
+    ctx?.user?.openid || ctx?.actorOpenid || ctx?.message?.senderId || ctx?.senderId ||
     ctx?.senderOpenid || ctx?.userOpenid || ctx?.openid || ctx?.sender?.openid ||
-    ctx?.user?.openid || ctx?.message?.author?.id || ctx?.message?.sender?.openid || ''
+    ctx?.message?.author?.id || ctx?.message?.sender?.openid || ''
   ).trim();
-  return Boolean(actor && owners.includes(actor));
+  if (actor && owners.includes(actor)) return true;
+
+  // Some private-message command contexts omit the host owner capability. In
+  // that case, allow only the explicitly configured panel target, never an
+  // arbitrary private-message sender or the latest known chat.
+  const configuredTarget = safeOpenid(readExtConfig(env).targetOpenid);
+  return Boolean(actor && configuredTarget && actor === configuredTarget);
 }
 
 export function redactOpenid(value) {
@@ -166,4 +191,113 @@ export function redactOpenid(value) {
 export function safeOpenid(value) {
   const id = String(value || '').trim();
   return /^[A-Za-z0-9_-]{1,200}$/.test(id) ? id : '';
+}
+
+/**
+ * 从当前命令或消息上下文中提取私聊 OpenID
+ * @param {object} ctx
+ * @returns {{ ok: boolean, isGroup: boolean, openid: string, reason?: string, fromHistory?: boolean }}
+ */
+export function extractC2COpenid(ctx = {}) {
+  // 检查是否明确处于群聊环境
+  const scope = String(
+    ctx?.peer?.scope ||
+    ctx?.caps?.scope ||
+    ctx?.message?.kind ||
+    ctx?.message?.scope ||
+    ''
+  ).toLowerCase();
+  const isGroup = scope === 'group' || Boolean(ctx?.message?.groupOpenid || ctx?.message?.group_openid);
+  if (isGroup) {
+    return { ok: false, isGroup: true, openid: '', reason: 'in_group' };
+  }
+
+  const env = ctx?.env || ctx;
+  const candidates = [
+    ctx?.peer?.scope === 'c2c' ? ctx.peer.peerId : '',
+    ctx?.user?.openid,
+    ctx?.caps?.scope === 'c2c' ? ctx.caps.peerId : '',
+    ctx?.caps?.actorOpenid,
+    ctx?.actorOpenid,
+    ctx?.senderOpenid,
+    ctx?.userOpenid,
+    ctx?.openid,
+    ctx?.message?.author?.user_openid,
+    ctx?.message?.author?.id,
+    ctx?.message?.senderId,
+    ctx?.replyTarget?.scope === 'c2c' ? ctx.replyTarget.id : '',
+  ];
+
+  for (const item of candidates) {
+    const safe = safeOpenid(item);
+    if (safe) return { ok: true, isGroup: false, openid: safe };
+  }
+
+  // 兜底尝试从历史最近 C2C 记录寻找
+  const latest = findLatestC2COpenid(env);
+  if (latest) {
+    return { ok: true, isGroup: false, openid: latest, fromHistory: true };
+  }
+
+  return { ok: false, isGroup: false, openid: '', reason: 'missing_openid' };
+}
+
+/**
+ * 获取当前私聊 OpenID，并在合规时自动将其填入扩展配置中的 targetOpenid
+ * @param {object} ctx
+ * @returns {{ ok: boolean, openid?: string, isGroup?: boolean, updated?: boolean, text: string }}
+ */
+export function bindTargetOpenidFromContext(ctx = {}) {
+  const result = extractC2COpenid(ctx);
+  if (result.isGroup) {
+    return {
+      ok: false,
+      isGroup: true,
+      text: '【主动陪伴】本指令用于获取私聊 OpenID 并绑定主动关怀。\n当前处于群聊环境，请在与机器人的【私聊会话】中发送此指令（如 /openid 或 /whoami）以完成自动绑定。',
+    };
+  }
+
+  if (!result.ok || !result.openid) {
+    return {
+      ok: false,
+      text: '【主动陪伴】未能获取到当前私聊的 OpenID。\n请确认你正在与机器人私聊，并发送一条普通文本后再试。',
+    };
+  }
+
+  const targetId = result.openid;
+  const env = ctx?.env || ctx;
+  const conf = readExtConfig(env);
+  const currentTarget = safeOpenid(conf.targetOpenid);
+  const isOwner = isOwnerContext(ctx);
+
+  // 如果已经配置了且与当前不一致，且当前发送者不是宿主主人，防止非主人篡改
+  if (currentTarget && currentTarget !== targetId && !isOwner) {
+    return {
+      ok: false,
+      openid: targetId,
+      text: `【主动陪伴】当前私聊 OpenID 为：\n${targetId}\n\n⚠️ 设置中已绑定其他主人 OpenID（${redactOpenid(currentTarget)}）。如需更换绑定，请由主人通过后台设置修改，或由系统主人发送指令。`,
+    };
+  }
+
+  // 自动写入配置
+  const isNew = currentTarget !== targetId;
+  writeExtConfig(env, { targetOpenid: targetId });
+
+  const statusNote = conf.enabled === false ? '\n（提示：当前主动陪伴总开关为关闭状态，发送 /companion on 即可开启）' : '';
+
+  if (!isNew) {
+    return {
+      ok: true,
+      openid: targetId,
+      updated: false,
+      text: `【主动陪伴】当前私聊 OpenID：\n${targetId}\n\nℹ️ 配置中已正确绑定此 OpenID，无需重复设置。${statusNote}`,
+    };
+  }
+
+  return {
+    ok: true,
+    openid: targetId,
+    updated: true,
+    text: `【主动陪伴】当前私聊 OpenID 获取成功！\n\n🔑 私聊 OpenID：\n${targetId}\n\n🎉 已自动填入「主动陪伴关怀设置」的主人配置中！后续的主动问候与空闲冒泡将定向至此私聊。${statusNote}`,
+  };
 }

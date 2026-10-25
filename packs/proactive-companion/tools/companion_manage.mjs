@@ -1,5 +1,5 @@
 import { isOwnerContext, normalizeConfig, readExtConfig, redactOpenid, resolveTargetOpenid, writeExtConfig } from '../lib/config.mjs';
-import { sendCompanionText } from '../lib/transport.mjs';
+import { checkCompanion, localDate } from '../hooks/companion-daemon.mjs';
 
 export default {
   name: 'companion_manage',
@@ -13,6 +13,16 @@ export default {
     reason: { type: 'string', description: '调整原因' },
   },
   run: async (args = {}, ctx = {}) => {
+    try {
+      const result = await manage(args, ctx);
+      return { ...result, ok: result.ok !== false, msg: result.message || result.error || JSON.stringify(result) };
+    } catch (error) {
+      return { ok: false, msg: '陪伴操作失败，请检查扩展配置和宿主日志', error: String(error?.code || 'COMPANION_OPERATION_FAILED') };
+    }
+  },
+};
+
+async function manage(args, ctx) {
     if (!isOwnerContext(ctx)) return { ok: false, error: '仅主人可以查看或修改陪伴设置' };
     const env = ctx?.env || ctx;
     const store = ctx?.store;
@@ -20,7 +30,7 @@ export default {
     try { runtime = (store && typeof store.load === 'function' && await store.load()) || {}; } catch {}
     const ext = readExtConfig(env);
     const conf = normalizeConfig({ ...runtime, ...ext, targetOpenid: resolveTargetOpenid(env, runtime, ext) });
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDate();
     if (conf.dailyDate !== today) {
       conf.dailyDate = today;
       conf.dailyCount = 0;
@@ -31,7 +41,7 @@ export default {
 
     if (action === 'get') {
       return {
-        enabled: conf.enabled, targetOpenid: redactOpenid(conf.targetOpenid), displayName: conf.displayName,
+        enabled: conf.enabled, targetOpenid: redactOpenid(conf.targetOpenid),
         dailyMax: conf.dailyMax, dailyMaxText: conf.dailyMax === 0 ? '无上限' : `${conf.dailyMax} 次`,
         dailyCount: conf.dailyCount, minIntervalHours: conf.minIntervalHours,
         idleHoursThreshold: conf.idleHoursThreshold, idleMinutesThreshold: conf.idleMinutesThreshold,
@@ -76,37 +86,8 @@ export default {
       return { ok: true, message: `空闲关怀间隔已设置为 ${val} 分钟` };
     }
     if (action === 'trigger_now') {
-      const blocked = (reason, error) => {
-        conf.lastCheckTs = Date.now();
-        conf.lastCheckReason = reason;
-        save();
-        return { ok: false, error };
-      };
-      if (!conf.targetOpenid) return blocked('missing_target', '未找到有效的 targetOpenid');
-      if (conf.mutedDate === today) return blocked('muted_today', '今天已设为免打扰');
-      if (conf.dailyMax > 0 && conf.dailyCount >= conf.dailyMax) return blocked('daily_limit', '今日主动关怀额度已用尽');
-      const lastBubble = Number(conf.lastBubbleTs || 0);
-      if (lastBubble && Date.now() - lastBubble < conf.minIntervalHours * 3600000) {
-        return blocked('cooldown', '仍在主动关怀冷却时间内');
-      }
-      try {
-        await sendCompanionText({ ...ctx, ...env }, conf.targetOpenid, '悄悄戳一下~ 主动陪伴演练成功！');
-      } catch (error) {
-        conf.lastCheckTs = Date.now();
-        conf.lastCheckReason = 'send_failed';
-        conf.lastSendError = String(error?.message || error);
-        save();
-        return { ok: false, error: `触发失败：${conf.lastSendError}` };
-      }
-      conf.lastBubbleTs = Date.now();
-      conf.dailyCount += 1;
-      conf.consecutiveBubblesWithoutReply += 1;
-      conf.lastCheckTs = conf.lastBubbleTs;
-      conf.lastCheckReason = 'manual_sent';
-      conf.lastSendError = '';
-      save();
-      return { ok: true, message: '已触发即时关怀测试' };
+      const result = await checkCompanion({ ...ctx, ...env }, { manual: true });
+      return { ok: result.accepted, ...result, message: result.accepted ? '已接纳原私聊会话唤醒，尚非 QQ 送达确认' : '关怀未触发' };
     }
     return { ok: false, error: `不支持的 action: ${action}` };
-  },
-};
+}

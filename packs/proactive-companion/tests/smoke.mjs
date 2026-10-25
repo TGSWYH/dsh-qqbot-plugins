@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { sessionFixture } from './session-fixture.mjs';
 import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import companionCommand from '../commands/companion.mjs';
+import companionIdCommand from '../commands/companion-id.mjs';
 import companionTool from '../tools/companion_manage.mjs';
 import daemon from '../hooks/companion-daemon.mjs';
 import {
@@ -11,9 +13,12 @@ import {
   readExtConfig,
   resolveTargetOpenid,
   writeExtConfig,
+  isOwnerContext,
 } from '../lib/config.mjs';
 
 const root = mkdtempSync(join(tmpdir(), 'proactive-companion-'));
+const sent = [];
+const fixture = sessionFixture(root, 'owner-openid', sent);
 const env = {
   dataRoot: root,
   caps: { owners: ['owner-openid'] },
@@ -36,12 +41,49 @@ function commandCtx(raw, extra = {}) {
 }
 
 try {
+  // Host command auth uses the real flattened capability contract.
+  assert.equal(isOwnerContext({ user: { isOwner: true } }), true);
+  assert.equal(isOwnerContext({ user: { openid: 'owner-openid' }, owners: ['owner-openid'] }), true);
+  assert.equal(isOwnerContext({ message: { senderId: 'owner-openid' }, env: { config: { groupAdmin: { owners: ['owner-openid'] } } } }), true);
+  assert.equal(isOwnerContext({ user: { openid: 'other-openid' }, owners: ['owner-openid'] }), false);
+
+  // Private-message contexts may omit host owner capabilities: only the
+  // explicitly configured panel target is accepted as the owner fallback.
+  writeExtConfig(env, { targetOpenid: 'owner-openid' });
+  assert.equal(isOwnerContext({ env, message: { senderId: 'owner-openid' } }), true);
+  assert.equal(isOwnerContext({ env, message: { senderId: 'other-openid' } }), false);
+  assert.equal(isOwnerContext({ env, message: { senderId: 'owner-openid' }, owners: ['other-openid'] }), true);
+
   // Configuration is rooted at env.dataRoot and target resolution is fail-closed.
   assert.equal(resolveTargetOpenid(env, { targetOpenid: 'legacy-target' }, { targetOpenid: 'panel-target' }), 'panel-target');
   assert.equal(resolveTargetOpenid({ dataRoot: root, caps: { owners: [] } }, {}, {}), '');
-  writeExtConfig(env, { targetOpenid: 'owner-openid', displayName: '测试主人', dailyMax: 7 });
+  writeExtConfig(env, { targetOpenid: 'owner-openid', dailyMax: 7 });
   assert.equal(existsSync(getExtConfigPath(env)), true);
-  assert.equal(readExtConfig(env).displayName, '测试主人');
+  assert.equal(readExtConfig(env).dailyMax, 7);
+  assert.equal('displayName' in readExtConfig(env), false);
+
+  // /openid and /companion id command automatically extract and bind C2C targetOpenid.
+  const groupCtx = { env, store, message: { kind: 'group', groupOpenid: 'group-1' } };
+  const groupResult = await companionIdCommand.handler(groupCtx);
+  assert.match(groupResult, /群聊环境/);
+
+  const c2cCtx = { env, store, peer: { scope: 'c2c', peerId: 'auto-bound-c2c-openid' }, isOwner: true };
+  const bindResult = await companionIdCommand.handler(c2cCtx);
+  assert.match(bindResult, /auto-bound-c2c-openid/);
+  assert.match(bindResult, /已自动填入/);
+  assert.equal(readExtConfig(env).targetOpenid, 'auto-bound-c2c-openid');
+
+  // /companion id sub-command produces the same auto-binding behavior
+  const subBindResult = await companionCommand.handler({ ...c2cCtx, command: { raw: 'id' } });
+  assert.match(subBindResult, /auto-bound-c2c-openid/);
+
+  // Manual set id command
+  const manualSetResult = await companionCommand.handler({ ...c2cCtx, command: { raw: 'set id manually-set-openid' } });
+  assert.match(manualSetResult, /manually-set-openid/);
+  assert.equal(readExtConfig(env).targetOpenid, 'manually-set-openid');
+
+  // Reset target back to owner-openid for following tests
+  writeExtConfig(env, { targetOpenid: 'owner-openid' });
 
   // Command parsing uses ctx.command.raw and writes to ext-config.
   const setResult = await companionCommand.handler(commandCtx('set max 7'));
@@ -61,15 +103,20 @@ try {
   assert.match(deniedCommand, /仅主人/);
   const deniedTool = await companionTool.run({ action: 'get' }, { env, store, isOwner: false });
   assert.equal(deniedTool.ok, false);
+  assert.match(deniedTool.msg, /仅主人/);
+  const toolStatus = await companionTool.run({ action: 'get' }, { env, store, isOwner: true });
+  assert.equal(toolStatus.ok, true);
+  assert.equal(typeof toolStatus.msg, 'string');
+  assert.match(toolStatus.msg, /targetOpenid/);
 
   // Tool contract is run(input, context), and trigger_now records only after send succeeds.
-  const sent = [];
   const toolCtx = {
     env,
     store,
     isOwner: true,
     text: async (...args) => sent.push(args),
   };
+  writeExtConfig(env, { dndStart: '00:00', dndEnd: '00:00' });
   const triggerResult = await companionTool.run({ action: 'trigger_now' }, toolCtx);
   assert.equal(triggerResult.ok, true);
   assert.equal(sent.length, 1);
@@ -78,6 +125,7 @@ try {
 
   // A failed send must not consume quota or cooldown.
   const beforeFailed = readExtConfig(env);
+  fixture.manager.accepted = false;
   const failedResult = await companionTool.run({ action: 'trigger_now' }, {
     env,
     store,
@@ -101,5 +149,6 @@ try {
 
   console.log('PASS proactive-companion smoke tests');
 } finally {
+  fixture.restore();
   rmSync(root, { recursive: true, force: true });
 }
