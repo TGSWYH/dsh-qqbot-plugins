@@ -29,7 +29,9 @@ const KINDS = ['tools', 'commands', 'hooks', 'inbound', 'outbound', 'botplay'];
 //   于是 lib/（被 import 的共享代码）和 qqbot-pack.json / README / 封面全被漏掉。
 //   症状：安装器按 index.json 的 files 下载 → 装出来的包缺 lib → 作者代码一 import 就崩。
 const ROOT_FILES = new Set(['qqbot-pack.json', 'README.md', 'cover.png', 'preview.png', 'LICENSE']);
-const SHARED_DIRS = new Set(['lib']);
+const SHARED_DIRS = new Set(['lib', 'docs']);
+/** 文档目录里允许分发的图片（README 引用的截图要能跟着包走，否则市场页和图都挂） */
+const ASSET_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
 const COVER_RE = /^cover\.(png|jpe?g|webp|gif)$/i;
 
 const REPO = process.env.GITHUB_REPOSITORY || 'zaofan-make/dsh-qqbot-plugins';
@@ -100,7 +102,7 @@ for (const id of packDirs.sort()) {
     // ① 包根文件：元数据 / 说明 / 封面，一律收
     if (segs.length === 1) return ROOT_FILES.has(top);
     // ② lib/ 等共享代码目录：脚本与 json 都收
-    if (SHARED_DIRS.has(top)) return EXTS.has(ext) || ext === '.json';
+    if (SHARED_DIRS.has(top)) return EXTS.has(ext) || ext === '.json' || ASSET_EXTS.has(ext);
     // ③ 扩展点目录：仍只收脚本
     return KINDS.includes(top) && EXTS.has(ext);
   });

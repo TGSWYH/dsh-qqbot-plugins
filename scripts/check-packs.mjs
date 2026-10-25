@@ -158,7 +158,11 @@ for (const rel of targets) {
       if (!/run\s*:/.test(src)) err(id + ': ' + f.rel + ' 缺 run 函数（工具契约要求 run）');
     } else if (top === 'commands') {
       if (!/name\s*:/.test(src)) warn(id + ': ' + f.rel + ' 没看到 name 字段');
-      if (!/handler\s*:/.test(src)) err(id + ': ' + f.rel + ' 缺 handler 函数（命令契约要求 handler，不是 run）');
+      // 兼容两种合法写法：属性 `handler: async (ctx) => {}` 与方法简写 `async handler(ctx) {}`
+      // （2026-10-26：原来只认冒号写法，把合法的简写误判成"缺 handler"）
+      if (!/(?:^|[\s,{])(?:async\s+)?handler\s*[:(]/m.test(src)) {
+        err(id + ': ' + f.rel + ' 缺 handler 函数（命令契约要求 handler，不是 run）');
+      }
     }
   }
 
