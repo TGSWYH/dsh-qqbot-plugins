@@ -74,6 +74,7 @@
         "tools"
       ],
       "files": [
+        "README.md",
         "commands/companion.mjs",
         "cover.png",
         "hooks/companion-daemon.mjs",
@@ -81,7 +82,6 @@
         "lib/transport.mjs",
         "preview.png",
         "qqbot-pack.json",
-        "README.md",
         "tools/companion_manage.mjs"
       ],
       "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins",
