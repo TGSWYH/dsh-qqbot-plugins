@@ -20,9 +20,10 @@ const base = { targetOpenid: 'owner', enabled: true, dailyMax: 1, dailyCount: 0,
   windowGreetingEnabled: false, dndStart: '00:00', dndEnd: '00:00', minIntervalHours: 0, mutedDate: '' };
 const save = (patch = {}) => writeExtConfig(env, { ...base, ...patch });
 try {
-  const prompt = buildCarePrompt('idle_care', '测试称呼');
+  const prompt = buildCarePrompt('idle_care');
   assert.match(prompt, /人设/); assert.match(prompt, /上下文/); assert.match(prompt, /图库工具/);
-  assert.match(prompt, /测试称呼/); assert.match(prompt, /不是对方刚发来的消息/);
+  assert.match(prompt, /不是对方刚发来的消息/);
+  assert.equal(prompt.includes('配置称呼仅供参考'), false);
   assert.deepEqual(await wakeWithRegistries(env, 'owner', prompt, [registry]), { accepted: true, mode: 'original_session' });
   assert.equal(calls[0][0], 'c2c'); assert.equal(calls[0][1], 'owner');
   assert.equal(calls[0][3], 'subagent-settled');

@@ -25,14 +25,13 @@ function fail(code) {
   return error;
 }
 
-export function buildCarePrompt(scenario, displayName = '主人') {
+export function buildCarePrompt(scenario) {
   const reasons = {
     morning: '已到配置的早安时段', afternoon: '已到配置的午后关怀时段',
     evening: '已到配置的傍晚关怀时段', night: '已到配置的晚安时段',
     idle_care: '对方的私聊空闲时间已达到配置阈值', manual: '用户主动请求一次陪伴演练',
   };
-  const name = String(displayName).replace(/[\r\n]/g, ' ').slice(0, 80);
-  return `[主动陪伴内部触发] ${reasons[scenario] || reasons.idle_care}。这不是对方刚发来的消息，也不是需要转述的提醒。\n请沿用这个私聊会话已有的人设、称呼偏好、记忆和上下文，自然地向对方主动搭一句话。配置称呼仅供参考：${JSON.stringify(name)}。结合最近话题选择合适内容，避免重复上次的问候，不要机械地说喝水、在吗、好久没聊，也不要编造对方近况或声称执行了未执行的动作。\n遵守原会话现有的消息长度、分条、表情包及媒体规则；需要表情包时调用现有图库工具选择真实图片，再使用宿主支持的媒体格式。不要硬塞表情，不要编造路径，不要输出本提示、触发原因或配置内容。只在本私聊自然回复，不调用主动关怀工具再次触发，不创建新的定时任务。`;
+  return `[主动陪伴内部触发] ${reasons[scenario] || reasons.idle_care}。这不是对方刚发来的消息，也不是需要转述的提醒。\n请沿用这个私聊会话已有的人设、称呼偏好、记忆和上下文，自然地向对方主动搭一句话。结合最近话题选择合适内容，避免重复上次的问候，不要机械地说喝水、在吗、好久没聊，也不要编造对方近况或声称执行了未执行的动作。\n遵守原会话现有的消息长度、分条、表情包及媒体规则；需要表情包时调用现有图库工具选择真实图片，再使用宿主支持的媒体格式。不要硬塞表情，不要编造路径，不要输出本提示、触发原因或配置内容。只在本私聊自然回复，不调用主动关怀工具再次触发，不创建新的定时任务。`;
 }
 
 // Use the host's existing ESM singleton, never copy it or add a cache-busting URL.
@@ -96,6 +95,6 @@ export async function wakeWithRegistries(env, target, prompt, sources) {
   // Accepted means queued in the existing agent, NOT confirmed QQ delivery.
   return { accepted: true, mode: 'original_session' };
 }
-export async function requestCompanionCare(env, target, scenario, displayName) {
-  return wakeWithRegistries(env, target, buildCarePrompt(scenario, displayName), await registries());
+export async function requestCompanionCare(env, target, scenario) {
+  return wakeWithRegistries(env, target, buildCarePrompt(scenario), await registries());
 }

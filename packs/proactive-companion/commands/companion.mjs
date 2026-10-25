@@ -3,10 +3,12 @@
  *
  * 用法：
  *   /companion                    — 查看当前状态与今日冒泡统计（双路线并行面板）
+ *   /companion id                 — 获取当前私聊 OpenID 并自动填入设置
  *   /companion on / off           — 启用或停用主动关怀总开关
  *   /companion test               — 手动触发一次主动关怀演练
  *   /companion set idle 3         — 设置空闲多少小时触发关怀（默认 3 小时，0 使用分钟阈值）
  *   /companion set minutes 30     — 设置空闲分钟数并切换至分钟模式
+ *   /companion set id <openid>    — 手动设置目标主人 OpenID
  *   /companion set window on/off  — 开启或关闭作息时段关怀路线
  *   /companion set poke on/off    — 开启或关闭空闲超时冒泡路线
  *   /companion set max 5          — 设置每天最多关怀次数（默认 5 次，0 无上限）
@@ -14,7 +16,16 @@
  *   /companion set dnd 23:30 08:30 — 设置夜间免打扰时段
  */
 
-import { isOwnerContext, normalizeConfig, readExtConfig, redactOpenid, resolveTargetOpenid, writeExtConfig } from '../lib/config.mjs';
+import {
+  bindTargetOpenidFromContext,
+  isOwnerContext,
+  normalizeConfig,
+  readExtConfig,
+  redactOpenid,
+  resolveTargetOpenid,
+  safeOpenid,
+  writeExtConfig,
+} from '../lib/config.mjs';
 import { checkCompanion, localDate } from '../hooks/companion-daemon.mjs';
 
 function parseNumber(value, integer = false, allowZero = false) {
@@ -37,13 +48,19 @@ function formatHours(ms) {
 export default {
   name: ['companion', '关怀', '主动陪伴'],
   description: '查看或管理私聊主动陪伴与关怀双驱动策略（作息问候 + 空闲冒泡）',
-  usage: '/companion [status|on|off|test|set <key> <val>]',
+  usage: '/companion [status|id|on|off|test|set <key> <val>]',
   handler: async (ctx) => {
-    if (!isOwnerContext(ctx)) return '【主动陪伴】仅主人可以查看或修改陪伴设置。';
-
     const raw = String(ctx?.command?.raw ?? ctx?.rawArgs ?? ctx?.args ?? '').trim();
     const parts = raw.split(/\s+/).filter(Boolean);
     const sub = (parts[0] || 'status').toLowerCase();
+
+    // 获取当前私聊 OpenID 并自动填入设置（私聊下任何人初次配置或主人重新绑定）
+    if (sub === 'id' || sub === 'openid' || sub === 'bind' || sub === 'whoami') {
+      const bound = bindTargetOpenidFromContext(ctx);
+      return bound.text;
+    }
+
+    if (!isOwnerContext(ctx)) return '【主动陪伴】仅主人可以查看或修改陪伴设置。（提示：在私聊中发送 /openid 即可自动将当前会话绑定为主人）';
 
     const env = ctx?.env || ctx;
     const today = localDate();
@@ -102,7 +119,15 @@ export default {
       const key = (parts[1] || '').toLowerCase();
       const val = parts[2];
       if (!key || val == null) {
-        return '用法说明：\n/companion set idle <小时数，0 使用分钟阈值>\n/companion set minutes <分钟数，默认 30>\n/companion set window <on|off>\n/companion set poke <on|off>\n/companion set max <每天最大次数，0 无上限>\n/companion set interval <最小冷却小时数>\n/companion set dnd <HH:mm> <HH:mm>';
+        return '用法说明：\n/openid                       — 自动获取当前私聊 OpenID 并填入设置\n/companion set id <openid>    — 手动设置主人 OpenID\n/companion set idle <小时数，0 使用分钟阈值>\n/companion set minutes <分钟数，默认 30>\n/companion set window <on|off>\n/companion set poke <on|off>\n/companion set max <每天最大次数，0 无上限>\n/companion set interval <最小冷却小时数>\n/companion set dnd <HH:mm> <HH:mm>';
+      }
+
+      if (key === 'id' || key === 'openid' || key === 'target') {
+        const safe = safeOpenid(val);
+        if (!safe) return '错误：无效的 OpenID 格式，应为英文字母、数字、下划线或连字符';
+        conf.targetOpenid = safe;
+        await save();
+        return `【主动陪伴】主人 OpenID 已设置为：${safe}`;
       }
 
       if (key === 'idle') {
@@ -178,7 +203,7 @@ export default {
     const lines = [
       `🌟 【主动陪伴与私聊关怀状态】`,
       `总开关：${conf.enabled ? '🟢 已启用' : '🔴 已停用'}`,
-      `目标主人：${redactOpenid(conf.targetOpenid)}`, 
+      `目标主人：${conf.targetOpenid ? redactOpenid(conf.targetOpenid) : '未配置（发送 /openid 即可自动填入）'}`, 
       ``,
       `⏰ 【路线一：作息时段关怀】${conf.windowGreetingEnabled ? '🟢 开启' : '⚪ 关闭'}`,
       `  • 早安问候：${conf.morningEnabled ? '已开' : '已关'} (${conf.morningStart}~${conf.morningEnd}) ${greeted.includes('morning') ? '✅今日已问候' : '⏳未触发'}`,
@@ -201,7 +226,7 @@ export default {
       `  • 最近检查原因：${conf.lastCheckReason || '暂无'}`,
       `  • 最近发送错误：${conf.lastSendError || '无'}`,
       ``,
-      `💡 提示：支持在 DSH「设置中心」中可视化调节各时段开关与时间，或使用 /companion set 指令。`
+      `💡 提示：支持在 DSH「设置中心」中可视化调节各时段开关与时间；在私聊中发送 /openid 或 /whoami 可直接获取当前私聊 ID 并自动绑定。`
     ];
 
     return lines.join('\n');

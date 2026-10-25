@@ -41,7 +41,7 @@ async function manage(args, ctx) {
 
     if (action === 'get') {
       return {
-        enabled: conf.enabled, targetOpenid: redactOpenid(conf.targetOpenid), displayName: conf.displayName,
+        enabled: conf.enabled, targetOpenid: redactOpenid(conf.targetOpenid),
         dailyMax: conf.dailyMax, dailyMaxText: conf.dailyMax === 0 ? '无上限' : `${conf.dailyMax} 次`,
         dailyCount: conf.dailyCount, minIntervalHours: conf.minIntervalHours,
         idleHoursThreshold: conf.idleHoursThreshold, idleMinutesThreshold: conf.idleMinutesThreshold,

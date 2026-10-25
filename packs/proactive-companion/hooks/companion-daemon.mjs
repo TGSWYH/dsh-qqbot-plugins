@@ -35,8 +35,7 @@ export const qqbotSettingsPage = {
   schema: [
     // 全局基础配置
     { key: 'enabled', type: 'bool', label: '启用主动关怀总开关', default: true, hint: '总开关：关闭后将停止一切主动问候与冒泡' },
-    { key: 'targetOpenid', type: 'string', label: '主人 OpenID', default: '', hint: '接收主动关怀的目标私聊 OpenID（留空时仅回退到宿主提供的主人列表，不会从任意最近 C2C 会话猜测）' },
-    { key: 'displayName', type: 'string', label: '称呼', default: '主人', hint: '主动问候时使用的称呼，留空则不特别称呼' },
+    { key: 'targetOpenid', type: 'string', label: '主人 OpenID', default: '', hint: '接收主动关怀的目标私聊 OpenID（留空时仅回退到宿主提供的主人列表；支持在私聊中输入 /openid 自动填入）' },
     { key: 'dailyMax', type: 'number', label: '每天最大关怀次数', default: 5, hint: '两条路线共享每日额度（默认 5 次）；0 表示不限每日次数，仍遵守免打扰、冷却和未回复保护'  },
     { key: 'minIntervalHours', type: 'number', label: '两次关怀最小间隔(小时)', default: 2.5, hint: '两次主动发送之间的最小冷却时间（默认 2.5 小时）；0 表示关闭冷却，仍遵守其他保护规则' },
     { key: 'dndStart', type: 'string', label: '免打扰开始时间', default: '23:30', hint: '夜间免打扰起始（24小时制 HH:mm）' },
@@ -140,7 +139,7 @@ async function inspectCompanion(env, { manual = false } = {}) {
     if (now-state.lastInteractionTs>=threshold) scenario='idle_care';
   }
   if (!scenario) return finish('waiting_threshold');
-  try { await requestCompanionCare(env,target,scenario,state.displayName); }
+  try { await requestCompanionCare(env,target,scenario); }
   catch (error) {
     env.logger?.warn?.('[companion] '+error.message);
     return finish('send_failed',error.message);
