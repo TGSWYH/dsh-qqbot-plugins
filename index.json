@@ -21,6 +21,8 @@
       ],
       "files": [
         "commands/打包示例.mjs",
+        "cover.png",
+        "qqbot-pack.json",
         "tools/hello-pack.mjs"
       ],
       "homepage": "https://github.com/zaofan-make/dsh-qqbot",
@@ -45,6 +47,8 @@
       ],
       "files": [
         "commands/帮我选.mjs",
+        "cover.png",
+        "qqbot-pack.json",
         "tools/pick-one.mjs"
       ],
       "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins/tree/main/packs/pick-one",
@@ -71,7 +75,13 @@
       ],
       "files": [
         "commands/companion.mjs",
+        "cover.png",
         "hooks/companion-daemon.mjs",
+        "lib/config.mjs",
+        "lib/transport.mjs",
+        "preview.png",
+        "qqbot-pack.json",
+        "README.md",
         "tools/companion_manage.mjs"
       ],
       "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins",
@@ -95,6 +105,7 @@
       ],
       "files": [
         "commands/抽签.mjs",
+        "qqbot-pack.json",
         "tools/dice.mjs",
         "tools/today.mjs"
       ],

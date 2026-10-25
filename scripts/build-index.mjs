@@ -25,6 +25,11 @@ const PACKS_DIR = join(ROOT, 'packs');
 const OUT = join(ROOT, 'index.json');
 const EXTS = new Set(['.mjs', '.js', '.cjs']);
 const KINDS = ['tools', 'commands', 'hooks', 'inbound', 'outbound', 'botplay'];
+// 2026-10-25 修：原来的 files 过滤只认 KINDS 目录 + 只收 .mjs/.js/.cjs，
+//   于是 lib/（被 import 的共享代码）和 qqbot-pack.json / README / 封面全被漏掉。
+//   症状：安装器按 index.json 的 files 下载 → 装出来的包缺 lib → 作者代码一 import 就崩。
+const ROOT_FILES = new Set(['qqbot-pack.json', 'README.md', 'cover.png', 'preview.png', 'LICENSE']);
+const SHARED_DIRS = new Set(['lib']);
 const COVER_RE = /^cover\.(png|jpe?g|webp|gif)$/i;
 
 const REPO = process.env.GITHUB_REPOSITORY || 'zaofan-make/dsh-qqbot-plugins';
@@ -84,14 +89,27 @@ for (const id of packDirs.sort()) {
 
   const all = walkFiles(dir, '');
 
-  // 参与「安装」的文件：扩展点目录下的脚本
+  // 参与「安装」的文件（2026-10-25 修）
+  //   旧规则：只收 KINDS 目录 + 只收 .mjs/.js/.cjs
+  //   → 漏了 lib/ 里的共享代码，也漏了 qqbot-pack.json / README / 封面
+  //   → 安装器按 files 下载，装出来的包是残的（proactive-companion v1.0.5 就栽在这）
   const files = all.filter((f) => {
-    const top = f.split('/')[0];
-    return KINDS.includes(top) && EXTS.has(extname(f));
+    const segs = f.split('/');
+    const top = segs[0];
+    const ext = extname(f);
+    // ① 包根文件：元数据 / 说明 / 封面，一律收
+    if (segs.length === 1) return ROOT_FILES.has(top);
+    // ② lib/ 等共享代码目录：脚本与 json 都收
+    if (SHARED_DIRS.has(top)) return EXTS.has(ext) || ext === '.json';
+    // ③ 扩展点目录：仍只收脚本
+    return KINDS.includes(top) && EXTS.has(ext);
   });
   if (files.length === 0) problems.push(id + ': 没有任何扩展文件（tools/ commands/ …）');
 
-  const kinds = [...new Set(files.map((f) => f.split('/')[0]))];
+  // kinds 只统计扩展点目录 —— lib 不是扩展点，混进来会让面板把它当第七类
+  const kinds = [...new Set(
+    files.map((f) => f.split('/')[0]).filter((t) => KINDS.includes(t)),
+  )];
 
   // 封面：manifest 声明优先，否则自动探测
   let cover = '';
