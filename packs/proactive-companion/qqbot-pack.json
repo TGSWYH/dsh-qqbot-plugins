@@ -10,5 +10,6 @@
     "私聊",
     "日常"
   ],
-  "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins"
+  "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins",
+  "minPluginVersion": "1.10.44"
 }
