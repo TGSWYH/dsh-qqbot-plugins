@@ -65,16 +65,18 @@ export function dataRootOf(env) {
 
 /** 配置候选路径（低优先级在前） */
 export function settingsCandidates(dataRoot) {
-  const list = [
-    join(PACK_DIR, 'settings.json'),
-    'D:/newwenjianjia/aiwork/鲸鱼娘/工具/tts-plugin/tts-config.json', // 旧版兼容
-  ];
+  const list = [join(PACK_DIR, 'settings.json')];
+  // 旧版 Windows 配置（仅 Windows 上探测；Linux/Termux 下这条路径毫无意义，
+  // 而且 `D:/...` 在 POSIX 里不是绝对路径，留着只会变成一条奇怪相对路径）
+  if (process.platform === 'win32') {
+    list.push('D:/newwenjianjia/aiwork/鲸鱼娘/工具/tts-plugin/tts-config.json');
+  }
   if (dataRoot) {
     const cfgDir = join(dataRoot, '.qqbot-extensions', '.state', 'ext-config');
-    // 面板按扩展文件名存配置：改名后主存是 volcengintts.json，
+    // 面板按扩展文件名存配置：主存是 volcengintts.json，
     // 旧名（tts-voice / tts_voice / tts）继续兜底，方便从旧版无痛迁移
     list.push(join(cfgDir, 'volcengintts.json'));
-    list.push(join(cfgDir, 'volcengintts.json'));
+    list.push(join(cfgDir, 'tts-voice.json'));
     list.push(join(cfgDir, 'tts_voice.json'));
     list.push(join(cfgDir, 'tts.json'));
   }
