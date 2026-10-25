@@ -162,29 +162,29 @@ AI 可直接调 `tts_voice`：`action=guide / emotions / test / status`
 | `resource mismatched` | `_moon_/_mars_` 结尾的 1.0 音色要 `seed-tts-1.0`；`_uranus_bigtts` / `_tob` / `ICL_` 都用默认 `seed-tts-2.0` |
 | 合成成功但没声音 | 看 `/tts status` 的输出目录里有没有音频文件；有 → 是**发送通道**问题（群可能限制语音） |
 | 只发文字没语音 | 标记写成全角括号了，或正文里提到裸 `[语音合成]` 被误判 |
-| 插件启动失败，没有 `starting bot` | `.qqbot-extensions/outbound/tts-voice.mjs` 与本包同名文件冲突 —— 删掉旧的 |
+| 插件启动失败，没有 `starting bot` | `.qqbot-extensions/outbound/volcengintts.mjs` 与本包同名文件冲突 —— 删掉旧的 |
 
 ---
 
 ## 文件结构
 
 ```
-tts-voice/
+volcengintts/
   qqbot-pack.json
   README.md
-  cover.jpg                 封面
+  cover.png                 封面
   docs/                     本 README 的两张图
   lib/settings.mjs          配置读取（面板 > 旧配置 > 包内默认）
-  outbound/tts-voice.mjs    出站：正文标记 → 语音（含设置页声明）
+  outbound/volcengintts.mjs    出站：正文标记 → 语音（含设置页声明）
   tools/tts_voice.mjs       工具：guide / emotions / test / status
   commands/tts.mjs          /tts 命令
   out/                      合成出来的音频（自动创建）
 ```
 
-## 从旧的 tts-voice.mjs 迁移
+## 从旧的 volcengintts.mjs 迁移
 
-以前把 `tts-voice.mjs` 丢在 `.qqbot-extensions/`、配置写在 `工具/tts-plugin/tts-config.json` 的**不用重填**：
+以前把 `volcengintts.mjs` 丢在 `.qqbot-extensions/`、配置写在 `工具/tts-plugin/tts-config.json` 的**不用重填**：
 
 `lib/settings.mjs` 仍会读那份旧配置（优先级低于面板），装好包就能继续用；在设置页填一次值后，就以面板为准。
 
-> ⚠️ 两处同名文件同时存在会让插件**启动失败**（连 `starting bot` 都不打印）。装本包前先删 `.qqbot-extensions/outbound/tts-voice.mjs` 和 `.qqbot-extensions/tools/tts_voice.mjs`。
+> ⚠️ 两处同名文件同时存在会让插件**启动失败**（连 `starting bot` 都不打印）。装本包前先删 `.qqbot-extensions/outbound/volcengintts.mjs` 和 `.qqbot-extensions/tools/tts_voice.mjs`。

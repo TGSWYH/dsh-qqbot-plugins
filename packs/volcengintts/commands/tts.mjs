@@ -3,7 +3,7 @@
  *
  * 为什么命令也要自己读配置：
  *   命令的 ctx.config 是**本文件**（tts.json）的配置，
- *   而设置页声明在 outbound/tts-voice.mjs 上（存 tts-voice.json）——两者不是一份。
+ *   而设置页声明在 outbound/volcengintts.mjs 上（存 volcengintts.json）——两者不是一份。
  *   所以统一走 lib/settings.mjs 读合并后的配置，避免"面板里明明填了却读不到"。
  */
 import { join } from 'node:path';

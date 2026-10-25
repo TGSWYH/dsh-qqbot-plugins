@@ -1,6 +1,6 @@
 {
-  "name": "TTS 语音合成 · 火山方舟",
-  "id": "tts-voice",
+  "name": "Volcengine TTS · 火山方舟语音合成",
+  "id": "volcengintts",
   "author": "做早饭",
   "version": "1.0.0",
   "minPluginVersion": "1.10.44",
@@ -10,7 +10,8 @@
     "TTS",
     "火山方舟",
     "豆包",
-    "媒体"
+    "媒体",
+    "voice"
   ],
   "homepage": "https://github.com/zaofan-make/dsh-qqbot-plugins"
 }

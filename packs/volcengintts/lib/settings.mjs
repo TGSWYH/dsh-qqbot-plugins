@@ -3,14 +3,14 @@
  *
  * 为什么需要它：
  *   `.qqbot-extensions` 里每个扩展文件按「文件名」各存一份配置
- *   → outbound/tts-voice.mjs、tools/tts_voice.mjs、commands/tts.mjs 会各读各的，互相看不见。
+ *   → outbound/volcengintts.mjs、tools/tts_voice.mjs、commands/tts.mjs 会各读各的，互相看不见。
  *   所以这里**不按扩展文件名找**，而是按固定候选列表依次读、依次合并，
  *   保证面板里填一次，出站/工具/命令三处都生效。
  *
  * 读取顺序（后面的覆盖前面的，即"面板 > 旧配置 > 包内默认"）：
  *   1. 包内 settings.json            ← 随包分发的默认值（可选）
  *   2. 旧版 工具/tts-plugin/tts-config.json ← 兼容迁移，老用户不用重填
- *   3. {dataRoot}/.qqbot-extensions/.state/ext-config/tts-voice.json ← 面板主存
+ *   3. {dataRoot}/.qqbot-extensions/.state/ext-config/volcengintts.json ← 面板主存
  *   4. 同目录 tts_voice.json / tts.json ← 面板若挂在别的文件上时的兜底
  */
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
@@ -71,7 +71,10 @@ export function settingsCandidates(dataRoot) {
   ];
   if (dataRoot) {
     const cfgDir = join(dataRoot, '.qqbot-extensions', '.state', 'ext-config');
-    list.push(join(cfgDir, 'tts-voice.json'));
+    // 面板按扩展文件名存配置：改名后主存是 volcengintts.json，
+    // 旧名（tts-voice / tts_voice / tts）继续兜底，方便从旧版无痛迁移
+    list.push(join(cfgDir, 'volcengintts.json'));
+    list.push(join(cfgDir, 'volcengintts.json'));
     list.push(join(cfgDir, 'tts_voice.json'));
     list.push(join(cfgDir, 'tts.json'));
   }

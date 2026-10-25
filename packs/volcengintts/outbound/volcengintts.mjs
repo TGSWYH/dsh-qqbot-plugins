@@ -1,7 +1,7 @@
 /**
- * tts-voice.mjs — 【出站扩展】正文里的 [语音合成]…[/语音合成] 标记 → 真实语音消息
+ * volcengintts.mjs — 【出站扩展】正文里的 [语音合成]…[/语音合成] 标记 → 真实语音消息
  *
- * 放到 `{dataRoot}/.qqbot-extensions/outbound/tts-voice.mjs` 即生效（改完 /tools-reload）。
+ * 放到 `{dataRoot}/.qqbot-extensions/outbound/volcengintts.mjs` 即生效（改完 /tools-reload）。
  *
  * ── 它做什么 ──────────────────────────────────────────────────────────────
  *   1. 在 phase='send'（正文发送前）扫描 ctx.text，把 `[语音合成]…[/语音合成]` 段抽出来；
@@ -44,7 +44,7 @@ let _dataRoot = '';
 
 /**
  * 面板设置（出现在「QQ 机器人扩展 → 设置」里）。
- * 值会存到 {dataRoot}/.qqbot-extensions/.state/ext-config/tts-voice.json，
+ * 值会存到 {dataRoot}/.qqbot-extensions/.state/ext-config/volcengintts.json，
  * lib/settings.mjs 正是从这个路径读，所以填一次＝三处生效。
  */
 export const qqbotSettingsPage = {
