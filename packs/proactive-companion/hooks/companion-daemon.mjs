@@ -17,14 +17,14 @@
  *    - 冷却退避机制：两次主动发起间至少冷却 2.5 小时；
  *    - 连续未回复退避：若连续发了主动问候而主人未曾回复，下次等待时间加长；连续 2 次无回复自动休眠，绝不连环轰炸。
  * 4. 智能驱动：
- *    - 优先使用宿主提供的官方 API 或私聊文本通道发送；
- *    - 发送通道不可用时安全跳过，不猜测收件人。
+ *    - 唤醒目标原私聊会话，由原会话模型生成人设与上下文一致的关怀；
+ *    - 会话不可用时报告原因，不回退到固定话术；接纳唤醒不等于 QQ 已送达。
  */
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { normalizeConfig, pickConfig, readExtConfig, resolveTargetOpenid, safeOpenid, writeExtConfig } from '../lib/config.mjs';
-import { sendCompanionText } from '../lib/transport.mjs';
+import { requestCompanionCare, withCompanionLock } from '../lib/session.mjs';
 
 /**
  * 声明设置面板（在「QQ机器人扩展」-「设置中心」中直接渲染可视化配置表单）
@@ -67,29 +67,6 @@ export const qqbotSettingsPage = {
   ],
 };
 
-const SCENARIO_TEMPLATES = {
-  morning: [
-    '早上好呀~ {name}醒了吗？新的一天也要顺顺利利哦',
-    '呜……揉揉眼睛，早安啦！今天也要元气满满呢~'
-  ],
-  afternoon: [
-    '下午两点啦，是不是容易打瞌睡呀？{name}快伸个懒腰，喝口水提提神~',
-    '午后元气补充！突然探头，提醒{name}起来活动一下肩膀哦~'
-  ],
-  evening: [
-    '天色暗下来啦，{name}今天忙完了嘛？别忘了吃晚饭哦，辛苦啦！',
-    '傍晚时间到！肚子饿了没？去奖励自己一顿好吃的吧~'
-  ],
-  night: [
-    '夜深了哦，{name}今天打算几点睡？别熬太晚啦，会变成大熊猫的！',
-    '差不多该准备钻进被窝啦~ 晚安，祝今晚做个甜甜的好梦~'
-  ],
-  idle_care: [
-    '悄悄探头看一眼……{name}在忙什么呀？好久没跟我说话啦~',
-    '戳一下！突然冒泡，提醒{name}记得多喝温水哦。',
-    '{name}{name}，在不在呀？要是累了随时找我唠唠嗑~'
-  ]
-};
 
 
 const runtimeFields = ['lastBubbleTs','lastInteractionTs','consecutiveBubblesWithoutReply','dailyDate','dailyCount','greetedWindowsToday','lastCheckTs','lastCheckReason','lastSendError'];
@@ -119,7 +96,10 @@ function latestHistory(env, target, now) {
   return {activity,user};
 }
 // Export the actual timer callback so regression tests exercise production logic.
-export async function checkCompanion(env) {
+export function checkCompanion(env, options = {}) {
+  return withCompanionLock(env, () => inspectCompanion(env, options));
+}
+async function inspectCompanion(env, { manual = false } = {}) {
   let legacy = {};
   try { legacy = await env.store?.load?.() || {}; } catch {}
   const ext = readExtConfig(env);
@@ -130,7 +110,7 @@ export async function checkCompanion(env) {
   const finish = (reason,error='') => {
     const patch = Object.fromEntries(runtimeFields.map(key=>[key,state[key]]));
     writeExtConfig(env,{...patch,lastCheckTs:now,lastCheckReason:reason,lastSendError:error});
-    return {sent:reason==='sent',reason,error};
+    return {sent:false,accepted:reason==='queued',reason,error};
   };
   if (state.dailyDate !== today) {
     state.dailyDate=today; state.dailyCount=0; state.greetedWindowsToday=[];
@@ -148,8 +128,8 @@ export async function checkCompanion(env) {
   if (state.consecutiveBubblesWithoutReply >= 2) return finish('awaiting_reply');
   const cooldown=state.minIntervalHours*3600000*(state.consecutiveBubblesWithoutReply>0?1.6:1);
   if (state.lastBubbleTs && now-state.lastBubbleTs < cooldown) return finish('cooldown');
-  let scenario='';
-  if (state.windowGreetingEnabled && (!state.lastInteractionTs || now-state.lastInteractionTs>=1200000)) {
+  let scenario=manual?'manual':'';
+  if (!scenario && state.windowGreetingEnabled && (!state.lastInteractionTs || now-state.lastInteractionTs>=1200000)) {
     for (const key of ['morning','afternoon','evening','night']) {
       if (state[key+'Enabled'] && !state.greetedWindowsToday.includes(key) && inRange(hhmm,state[key+'Start'],state[key+'End'])) { scenario=key; break; }
     }
@@ -160,16 +140,14 @@ export async function checkCompanion(env) {
     if (now-state.lastInteractionTs>=threshold) scenario='idle_care';
   }
   if (!scenario) return finish('waiting_threshold');
-  const list=SCENARIO_TEMPLATES[scenario];
-  const text=list[Math.floor(Math.random()*list.length)].replaceAll('{name}',state.displayName);
-  try { await sendCompanionText(env,target,text); }
+  try { await requestCompanionCare(env,target,scenario,state.displayName); }
   catch (error) {
     env.logger?.warn?.('[companion] '+error.message);
     return finish('send_failed',error.message);
   }
   state.lastBubbleTs=now; state.dailyCount++; state.consecutiveBubblesWithoutReply++;
-  if (scenario!=='idle_care') state.greetedWindowsToday.push(scenario);
-  return finish('sent');
+  if (scenario!=='idle_care' && scenario!=='manual') state.greetedWindowsToday.push(scenario);
+  return finish('queued');
 }
 let generation=0, timer=null, first=null, pending=Promise.resolve();
 export default {

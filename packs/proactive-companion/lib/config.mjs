@@ -136,7 +136,14 @@ export function resolveTargetOpenid(env, state = {}, ext = readExtConfig(env)) {
   // Explicit panel configuration wins; legacy store is second; the host owner list
   // is the only implicit fallback. Never choose an arbitrary recent C2C chat:
   // any stranger can otherwise become the recipient of proactive messages.
-  const candidates = [ext.targetOpenid, state.targetOpenid, env?.config?.owners?.[0], env?.caps?.owners?.[0]];
+  const ownerLists = [
+    env?.owners,
+    env?.caps?.owners,
+    env?.config?.groupAdmin?.owners,
+    env?.config?.owners,
+  ];
+  const ownerFallbacks = ownerLists.flatMap((list) => Array.isArray(list) ? list : []);
+  const candidates = [ext.targetOpenid, state.targetOpenid, ...ownerFallbacks];
   for (const candidate of candidates) {
     const safe = safeOpenid(candidate);
     if (safe) return safe;
@@ -145,16 +152,35 @@ export function resolveTargetOpenid(env, state = {}, ext = readExtConfig(env)) {
 }
 
 export function isOwnerContext(ctx = {}) {
-  if (ctx?.isOwner === true || ctx?.permissions?.isOwner === true || ctx?.sender?.isOwner === true) return true;
+  if (
+    ctx?.user?.isOwner === true ||
+    ctx?.performer?.isOwner === true ||
+    ctx?.isOwner === true ||
+    ctx?.permissions?.isOwner === true ||
+    ctx?.sender?.isOwner === true
+  ) return true;
   const env = ctx?.env || ctx;
-  const list = env?.config?.owners || env?.caps?.owners || [];
-  const owners = Array.isArray(list) ? list.map(String) : [];
-  if (!owners.length) return false;
+  const lists = [
+    ctx?.owners,
+    ctx?.caps?.owners,
+    env?.owners,
+    env?.caps?.owners,
+    env?.config?.groupAdmin?.owners,
+    env?.config?.owners,
+  ];
+  const owners = [...new Set(lists.flatMap((list) => Array.isArray(list) ? list.map(String) : []))];
   const actor = String(
+    ctx?.user?.openid || ctx?.actorOpenid || ctx?.message?.senderId || ctx?.senderId ||
     ctx?.senderOpenid || ctx?.userOpenid || ctx?.openid || ctx?.sender?.openid ||
-    ctx?.user?.openid || ctx?.message?.author?.id || ctx?.message?.sender?.openid || ''
+    ctx?.message?.author?.id || ctx?.message?.sender?.openid || ''
   ).trim();
-  return Boolean(actor && owners.includes(actor));
+  if (actor && owners.includes(actor)) return true;
+
+  // Some private-message command contexts omit the host owner capability. In
+  // that case, allow only the explicitly configured panel target, never an
+  // arbitrary private-message sender or the latest known chat.
+  const configuredTarget = safeOpenid(readExtConfig(env).targetOpenid);
+  return Boolean(actor && configuredTarget && actor === configuredTarget);
 }
 
 export function redactOpenid(value) {

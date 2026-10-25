@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { sessionFixture } from './session-fixture.mjs';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +8,7 @@ import { normalizeConfig, readExtConfig, writeExtConfig } from '../lib/config.mj
 import { sendCompanionText } from '../lib/transport.mjs';
 const root=mkdtempSync(join(tmpdir(),'companion-idle-test-'));
 const sent=[];
+const fixture=sessionFixture(root,'owner',sent);
 const env={dataRoot:root,config:{owners:['owner']},caps:{api:async()=>({ok:false,err:{code:'NO_CREDENTIALS'}})},text:async(...args)=>{sent.push(args);return true;},logger:{info(){},warn(){}}};
 const dir=join(root,'.qqbot','msg-history','c2c_owner');
 mkdirSync(dir,{recursive:true});
@@ -20,16 +22,18 @@ try {
   assert.equal((await checkCompanion(env)).reason,'no_interaction_history');
   writeFileSync(join(dir,localDate()+'.jsonl'),JSON.stringify({s:'owner',t:now-120000,x:'hello'})+'\n');
   save();
-  assert.equal((await checkCompanion(env)).reason,'sent');
+  assert.equal((await checkCompanion(env)).reason,'queued');
   assert.equal(sent.length,1);
-  assert.equal(sent[0][0],'owner');
+  assert.equal(sent[0][0],'c2c');
+   assert.equal(sent[0][1],'owner');
+   assert.match(sent[0][2],/原会话|这个私聊会话/);
   assert.equal(readExtConfig(env).dailyCount,100,'zero dailyMax is unlimited');
   assert.equal(readExtConfig(env).consecutiveBubblesWithoutReply,1);
   assert.equal(readExtConfig(env).lastInteractionTs,now-120000);
   assert.equal((await checkCompanion(env)).reason,'cooldown');
   save({minIntervalHours:0,lastBubbleTs:now-1000,consecutiveBubblesWithoutReply:1});
   assert.equal(readExtConfig(env).minIntervalHours,0);
-  assert.equal((await checkCompanion(env)).reason,'sent','zero interval disables cooldown');
+  assert.equal((await checkCompanion(env)).reason,'queued','zero interval disables cooldown');
   assert.equal((await checkCompanion(env)).reason,'awaiting_reply','zero cooldown retains unanswered protection');
   assert.equal(normalizeConfig({minIntervalHours:-1}).minIntervalHours,2.5);
   assert.equal(normalizeConfig({minIntervalHours:''}).minIntervalHours,2.5);
@@ -44,17 +48,17 @@ try {
   save({consecutiveBubblesWithoutReply:2,lastBubbleTs:now-60000});
   assert.equal((await checkCompanion(env)).reason,'awaiting_reply');
   save();
-  env.text=async()=>false;
+  fixture.manager.accepted=false;
   assert.equal((await checkCompanion(env)).reason,'send_failed');
   assert.equal(readExtConfig(env).dailyCount,99,'failed send must not consume quota');
   assert.ok(readExtConfig(env).lastSendError);
-  env.text=async()=>true;
+  fixture.manager.accepted=true;
   // Bootstrap from yesterday rather than requiring today's first message.
   writeFileSync(join(dir,localDate()+'.jsonl'),'');
   const yesterday=new Date(now-86400000);
   writeFileSync(join(dir,localDate(yesterday)+'.jsonl'),JSON.stringify({s:'owner',t:now-86400000,x:'yesterday'})+'\n');
   save();
-  assert.equal((await checkCompanion(env)).reason,'sent');
+  assert.equal((await checkCompanion(env)).reason,'queued');
   // Startup caps alone cannot deliver; must produce a diagnostic, never false success.
   await assert.rejects(sendCompanionText({caps:{api:async()=>({ok:false,err:{code:'NO_CREDENTIALS'}})}},'owner','test'));
   // Test official transport using intercepted fetch only; absolutely no network calls.
@@ -73,4 +77,4 @@ try {
   } finally {globalThis.fetch=originalFetch;}
   await daemon.run(env); await daemon.run(env); await daemon.dispose();
   console.log('PASS idle regression: real check callback, minutes, unlimited quota, cooldown, mute, backoff, cross-day, failed delivery, startup API fallback');
-} finally {await daemon.dispose();rmSync(root,{recursive:true,force:true});}
+} finally {await daemon.dispose();fixture.restore();rmSync(root,{recursive:true,force:true});}

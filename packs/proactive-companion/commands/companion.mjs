@@ -15,7 +15,7 @@
  */
 
 import { isOwnerContext, normalizeConfig, readExtConfig, redactOpenid, resolveTargetOpenid, writeExtConfig } from '../lib/config.mjs';
-import { sendCompanionText } from '../lib/transport.mjs';
+import { checkCompanion, localDate } from '../hooks/companion-daemon.mjs';
 
 function parseNumber(value, integer = false, allowZero = false) {
   const text = String(value ?? '').trim();
@@ -46,7 +46,7 @@ export default {
     const sub = (parts[0] || 'status').toLowerCase();
 
     const env = ctx?.env || ctx;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDate();
 
     // 读写存储
     const store = ctx.store;
@@ -92,34 +92,10 @@ export default {
     }
 
     if (sub === 'test') {
-      const blocked = async (reason, message) => {
-        conf.lastCheckTs = Date.now();
-        conf.lastCheckReason = reason;
-        await save();
-        return message;
-      };
-      if (!conf.targetOpenid) return blocked('missing_target', '【主动陪伴】演练失败：未配置有效的主人 OpenID。');
-      if (conf.mutedDate === today) return blocked('muted_today', '【主动陪伴】演练失败：今天已设为免打扰。');
-      if (conf.dailyMax > 0 && conf.dailyCount >= conf.dailyMax) return blocked('daily_limit', '【主动陪伴】演练失败：今日主动关怀额度已用尽。');
-      const lastBubble = Number(conf.lastBubbleTs || 0);
-      if (lastBubble && Date.now() - lastBubble < conf.minIntervalHours * 3600000) return blocked('cooldown', '【主动陪伴】演练失败：仍在主动关怀冷却时间内。');
-      try {
-        await sendCompanionText({ ...ctx, ...env }, conf.targetOpenid, `悄悄戳一下${conf.displayName}~ 主动陪伴演练测试成功啦！随时都在呢~`);
-      } catch (error) {
-        conf.lastCheckTs = Date.now();
-        conf.lastCheckReason = 'send_failed';
-        conf.lastSendError = String(error?.message || error);
-        await save();
-        return `【主动陪伴】演练失败：${conf.lastSendError}`;
-      }
-      conf.lastBubbleTs = Date.now();
-      conf.dailyCount += 1;
-      conf.consecutiveBubblesWithoutReply += 1;
-      conf.lastCheckTs = conf.lastBubbleTs;
-      conf.lastCheckReason = 'manual_sent';
-      conf.lastSendError = '';
-      await save();
-      return '【主动陪伴】演练触发成功！已向私聊通道发送主动问候。';
+      const result = await checkCompanion({ ...ctx, ...env }, { manual: true });
+      return result.accepted
+        ? '【主动陪伴】已提交给原私聊会话，AI 将结合上下文生成关怀；这表示已接纳唤醒，不代表 QQ 已送达。'
+        : '【主动陪伴】演练未触发：' + result.reason + (result.error ? '；' + result.error : '');
     }
 
     if (sub === 'set') {
@@ -215,7 +191,7 @@ export default {
       `  • 当前空闲时长：${formatHours(idleDurationMs)}`,
       ``,
       `🛡️ 【频控与免打扰保护】`,
-      `  • 今日已关怀次数：${conf.dailyCount} / ${conf.dailyMax === 0 ? '无上限' : conf.dailyMax}`,
+      `  • 今日已接纳关怀次数：${conf.dailyCount} / ${conf.dailyMax === 0 ? '无上限' : conf.dailyMax}`,
       `  • 今日静音：${conf.mutedDate === today ? '已开启' : '未开启'}`,
       `  • 两次关怀最小冷却：${conf.minIntervalHours} 小时`,
       `  • 夜间免打扰时段：${conf.dndStart} ~ ${conf.dndEnd}`,
