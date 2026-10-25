@@ -152,7 +152,7 @@ export default {
   name: NAME,
   description: '火山方舟语音合成：/tts 看状态，/tts test 文本 试听，/tts voice <音色ID> 换音色试听',
   usage: '/tts [status|test 文本|voice 音色ID|guide]',
-  async handler(ctx) {
+  handler: async (ctx) => {
     const raw = String(ctx?.args?.raw ?? ctx?.args?.join?.(' ') ?? '').trim();
     const args = raw ? Array.isArray(ctx?.args) ? ctx.args : raw.split(/\s+/) : [];
     const sub = String(args[0] || 'status').toLowerCase();
