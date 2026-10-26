@@ -113,10 +113,19 @@ for (const id of packDirs.sort()) {
     files.map((f) => f.split('/')[0]).filter((t) => KINDS.includes(t)),
   )];
 
-  // 封面：manifest 声明优先，否则自动探测
+  // 封面，三种来源（2026-10-26 主人要求支持外部图床）：
+  //   ① manifest 里写 http(s) URL   → 原样用，不做任何镜像改写（作者自己挑的图床）
+  //   ② manifest 里写包内文件名     → 转成仓库地址
+  //   ③ 都没写                      → 自动探测 cover.png/jpg/webp/gif
   let cover = '';
-  if (meta.cover && all.includes(String(meta.cover))) cover = String(meta.cover);
-  else {
+  let coverIsUrl = false;
+  const rawCover = meta.cover ? String(meta.cover).trim() : '';
+  if (rawCover && /^https?:\/\//i.test(rawCover)) {
+    cover = rawCover;
+    coverIsUrl = true;
+  } else if (rawCover && all.includes(rawCover)) {
+    cover = rawCover;
+  } else {
     const auto = all.find((f) => COVER_RE.test(f));
     if (auto) cover = auto;
   }
@@ -136,7 +145,11 @@ for (const id of packDirs.sort()) {
     files,
   };
   if (meta.homepage) entry.homepage = String(meta.homepage);
-  if (cover) entry.cover = 'https://cdn.jsdelivr.net/gh/' + REPO + '@' + BRANCH + '/packs/' + id + '/' + cover;
+  if (cover) {
+    entry.cover = coverIsUrl
+      ? cover                                                        // 外部图床：原样保留
+      : 'https://cdn.jsdelivr.net/gh/' + REPO + '@' + BRANCH + '/packs/' + id + '/' + cover;
+  }
 
   plugins.push(entry);
 }
