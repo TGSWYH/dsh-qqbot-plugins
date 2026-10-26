@@ -38,7 +38,20 @@ packs/<id>/
 `files` **必填**，列出 `path` 目录下**所有文件**（相对路径）。装的时候按这个清单逐个下载，
 不走 GitHub 目录 API —— 那个接口在墙内连不上。
 
-`cover` 可选，指向仓库里的图片（png/jpg/webp），面板会把它当卡片封面。
+`cover` 可选，卡片封面。**两种写法都支持**（2026-10-26 起）：
+
+```jsonc
+// ① 外部图床链接（推荐：图不跟着仓库走，GitHub 抽风也不影响）
+"cover": "https://i.ibb.co/xxxxx/cover.png"
+
+// ② 包内文件名（文件放 packs/<你的包>/cover.png）
+"cover": "cover.png"
+```
+
+- **写完整 URL 时原样保留**，市场不会做任何镜像改写 —— 你自己挑的图床自己负责稳定性。
+- 写包内文件名时，构建脚本会转成仓库地址（jsdelivr），面板再按 jsdelivr → gh-proxy → ghproxy → raw 四级降级。
+- 都不写时，自动探测包目录下的 `cover.png / cover.jpg / cover.webp / cover.gif`。
+- 建议用**直链**（`https://xxx/a.png`），别用需要跳转的分享页（`https://xxx/view/123`），面板的 `<img>` 拉不到图。
 
 ## 工具怎么写
 
